@@ -2,7 +2,17 @@
 name = "JPlayVR2"
 version = "0.1.0"
 edition = "2021"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+
 [dependencies]
+env_logger = "0.9"
+imgui = "0.8"
+imgui-wgpu = "0.20"
+imgui-winit-support = { version = "0.8", default-features = false, features = ["winit-26"] }
+log = "0.4"
+pixels = { git = "https://github.com/parasyte/pixels" }
+winit = "0.26"
+winit_input_helper = "0.12"
