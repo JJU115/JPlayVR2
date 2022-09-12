@@ -8,8 +8,8 @@ pub mod cartridge {
 
     impl Cartridge {
 
-        pub fn cpu_read(&self) {
-
+        pub fn cpu_read(&self, addr: u16) -> u8 {
+            0
         }
 
 

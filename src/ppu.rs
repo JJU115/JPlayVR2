@@ -6,4 +6,18 @@ pub mod ppu {
         pub c: &'a Cartridge,
     }
 
+
+
+    impl Ricoh2c02<'_> {
+
+        pub fn reset(&self) {
+
+        }
+
+
+        pub fn generate_signal(&self) {
+            
+        }
+    }
+
 }

@@ -3,6 +3,7 @@ use std::vec;
 pub mod cpu;
 pub mod ppu;
 pub mod cartridge;
+pub mod console;
 
 fn main() {
     let cart = cartridge::cartridge::Cartridge {
@@ -16,11 +17,23 @@ fn main() {
     };
 
 
-    let cp = cpu::cpu::Mos6502 {
-        c: &cart
+    let mut cp = cpu::cpu::Mos6502 {
+        c: &cart,
+        acc: 0,
+        ind_x: 0,
+        ind_y: 0,
+        stat: 0x34,
+        stck_pnt: 0xFD,
+        prg_cnt: 0xFFFC,
+        cpu_ram: vec![0; 2048],
+    };
+
+    let nes  = console::console::Console {
+        cartridge: &cart,
+        cpu: &mut cp,
+        ppu: &p
     };
 
 
-    p.c.ppu_read();
-    cp.c.cpu_read();
+    
 }
