@@ -3,7 +3,7 @@ pub mod cpu {
 
 
     pub struct Mos6502<'a> {
-        pub c: &'a cartridge::Cartridge,
+        pub cart: &'a cartridge::Cartridge,
 
         //Registers
         pub acc: u8,
@@ -24,12 +24,25 @@ pub mod cpu {
         pub fn reset(&mut self) {
             self.stat = self.stat | 0x04;
             self.stck_pnt = self.stck_pnt - 3;
-            self.prg_cnt = ((self.c.cpu_read(0xFFFD) as u16) << 8) | (self.c.cpu_read(0xFFFC) as u16);
+            self.prg_cnt = ((self.cart.cpu_read(0xFFFD) as u16) << 8) | (self.cart.cpu_read(0xFFFC) as u16);
         }
 
 
-        pub fn begin_execution(&mut self) {
+        pub fn execute_instruction(&mut self) -> u8 {
+            let opcode = self.cart.cpu_read(self.prg_cnt);
+            self.prg_cnt += 1;
 
+            match opcode {
+                0x69 => 0,
+                _ => 0
+            };
+            0
+        }
+
+
+
+        fn adc() -> u8 {
+            0
         }
 
     }

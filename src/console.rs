@@ -23,6 +23,9 @@ pub mod console {
 
             //Execute a single CPU instruction and receive the cycle count
             //Run the PPU for 3 times that many cycles
+            loop {
+                let cpu_cycles = self.cpu.execute_instruction();
+            }
         }
     }
 }

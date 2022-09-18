@@ -18,7 +18,7 @@ fn main() {
 
 
     let mut cp = cpu::cpu::Mos6502 {
-        c: &cart,
+        cart: &cart,
         acc: 0,
         ind_x: 0,
         ind_y: 0,
