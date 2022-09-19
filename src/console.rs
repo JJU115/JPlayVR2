@@ -16,7 +16,7 @@ pub mod console {
         }
 
 
-        fn play_game(&mut self) {
+        fn start_console(&mut self) {
             //Perform a reset on the cpu and ppu
             self.cpu.reset();
 

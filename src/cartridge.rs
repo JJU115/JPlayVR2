@@ -8,8 +8,12 @@ pub mod cartridge {
 
     impl Cartridge {
 
-        pub fn cpu_read(&self, addr: u16) -> u8 {
-            0
+        /*
+            Since all instructions require fetching two bytes, can just call this function once 
+            from cpu to get those two bytes rather than having two separate calls to cpu_read
+        */
+        pub fn cpu_read(&self, addr: u16, getTwo: bool) -> (u8, u8) {
+            (0, 0)
         }
 
 
