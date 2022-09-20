@@ -12,8 +12,7 @@ pub mod cpu {
         Absolute,
         Relative,
         Indirect,
-        AbsoluteX,
-        AbsoluteY,
+        AbsoluteIndex(u8),
         ZeroPageIndex(u8),
         IndirectX,
         IndirectY
@@ -57,10 +56,10 @@ pub mod cpu {
                 0x65 => self.adc(&AddressingMode::ZeroPage, opcode.1),
                 0x75 => self.adc(&AddressingMode::ZeroPageIndex(self.ind_x), opcode.1),
                 0x6D => self.adc(&AddressingMode::Absolute, opcode.1),
-                0x7D => self.adc(&AddressingMode::AbsoluteX, opcode.1),
-                0x79 => self.adc(&AddressingMode::AbsoluteY, opcode.1),
+                0x7D => self.adc(&AddressingMode::AbsoluteIndex(self.ind_x), opcode.1),
+                0x79 => self.adc(&AddressingMode::AbsoluteIndex(self.ind_y), opcode.1),
                 0x61 => self.adc(&AddressingMode::IndirectX, opcode.1),
-                0x71 => self.adc(&AddressingMode::AbsoluteY, opcode.1),
+                0x71 => self.adc(&AddressingMode::IndirectY, opcode.1),
 
                 //AND
                 _ => 0
@@ -80,13 +79,8 @@ pub mod cpu {
                     self.prg_cnt += 1;
                     (self.cart.cpu_read(addr, false).0, addr) 
                 },
-                AddressingMode::AbsoluteX => {
-                    let addr = (self.cart.cpu_read(self.prg_cnt, false).0 as u16) << 8 | (data + self.ind_x) as u16;
-                    self.prg_cnt += 1;
-                    (self.cart.cpu_read(addr, false).0, addr)
-                },
-                AddressingMode::AbsoluteY => {
-                    let addr = (self.cart.cpu_read(self.prg_cnt, false).0 as u16) << 8 | (data + self.ind_y) as u16;
+                AddressingMode::AbsoluteIndex(ind) => {
+                    let addr = (self.cart.cpu_read(self.prg_cnt, false).0 as u16) << 8 | (data + ind) as u16;
                     self.prg_cnt += 1;
                     (self.cart.cpu_read(addr, false).0, addr)
                 },
@@ -119,9 +113,184 @@ pub mod cpu {
         }
 
 
+        fn and(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            0
+        }
 
         fn asl(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
             let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+        //Branch instructions can all be handled in one function
+        //If flag equals value, take the branch, remember branching is signed
+        //Another potential 'oops' cycle here
+        fn branch(&mut self, flag: u8, value: u8) -> u8 {
+            0
+        }
+
+        //AND mask with status register
+        fn clear(&mut self, mask: u8) {
+
+        }
+
+
+        fn cmp(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+        
+        fn cpx(&mut self, mode: &AddressingMode, operand: u8, reg: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn cpy(&mut self, mode: &AddressingMode, operand: u8, reg: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn dec(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+        
+        fn dex(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn dey(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn eor(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn inc(&mut self, mode: &AddressingMode) -> u8 {
+            0
+        }
+
+        fn inx(&mut self, mode: &AddressingMode) -> u8 {
+            0
+        }
+
+        fn iny(&mut self, mode: &AddressingMode) -> u8 {
+            0
+        }
+
+
+        fn lda(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+        
+        fn ldx(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn ldy(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn lsr(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+        
+        fn ora(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        //Push instructions all as one function - push register onto stack
+        //PHA, PHP
+        fn push(&mut self, register: u8) {
+
+        }
+
+
+        fn pla(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+        fn plp(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn rol(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+        fn ror(&mut self, mode: &AddressingMode, operand: u8, reg: u8) -> u8 {
+            let data = self.fetch_instruction_data(mode, operand);
+            0
+        }
+
+
+        fn sbc(&mut self, mode: &AddressingMode, operand: u8) -> u8 {
+            0
+        }
+
+
+        fn sta(&mut self) {
+            
+        }
+
+        //All set instructions as one functions
+        //STX, STY
+        fn stXY() -> u8 {
+            0
+        }
+
+
+        fn tax() -> u8 {
+            0
+        }
+
+
+        fn tay() -> u8 {
+            0
+        }
+
+
+        fn tsx() -> u8 {
+            0
+        }
+
+
+        fn txa() -> u8 {
+            0
+        }
+
+
+        fn txs() -> u8 {
+            0
+        }
+
+
+        fn tya() -> u8 {
             0
         }
 
