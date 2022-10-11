@@ -124,17 +124,14 @@ pub mod cpu {
         fn adc(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             let sum = self.acc + data.0 + self.stat & 0x01;
+            self.stat &= 0xBE;
             //Carry
             if ((self.acc & 0x80) == (data.0 & 0x80)) && ((sum & 0x80) != (self.acc & 0x80)) {
                 self.stat |= 0x40;
-            } else {
-                self.stat &= 0xBF;
             }
             //Overflow
             if sum <= self.acc && sum <= data.0 {
                 self.stat |= 0x01;
-            } else {
-                self.stat &= 0xFE;
             }
             self.acc = sum;
             self.examine_status(self.acc);          
@@ -146,6 +143,7 @@ pub mod cpu {
             self.examine_status(self.acc);
         }
 
+
         fn asl(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.stat &= 0xFE;
@@ -156,6 +154,17 @@ pub mod cpu {
             } else {
                 self.writeback(data.1, data.0)
             }
+            self.examine_status(data.0);
+        }
+
+
+        fn bit(&mut self, mode: &AddressingMode) {
+            let data = self.fetch_instruction_data(mode);
+            self.stat &= 0x3D;
+            self.stat |= (data.0 & 0xC0);
+            if self.acc & data.0 == 0 {
+                self.stat |= 0x02;
+            }
         }
 
         //Branch instructions can all be handled in one function
@@ -163,6 +172,12 @@ pub mod cpu {
         //Another potential 'oops' cycle here
         fn branch(&mut self, flag: u8, value: u8) -> u8 {
             0
+        }
+
+
+        //BRK instruction forcibly triggers interrupt
+        fn brk(&mut self) {
+
         }
 
         //AND mask with status register
@@ -173,85 +188,143 @@ pub mod cpu {
 
         fn cmp(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.stat &= 0x7C;
+            if self.acc >= data.0 { self.stat |= 0x01; }
+            if self.acc == data.0 { self.stat |= 0x02; }
+            if (self.acc - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
             0
         }
 
         
         fn cpx(&mut self, mode: &AddressingMode, reg: u8) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.stat &= 0x7C;
+            if self.ind_x >= data.0 { self.stat |= 0x01; }
+            if self.ind_x == data.0 { self.stat |= 0x02; }
+            if (self.ind_x - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
             0
         }
 
 
         fn cpy(&mut self, mode: &AddressingMode, reg: u8) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.stat &= 0x7C;
+            if self.ind_y >= data.0 { self.stat |= 0x01; }
+            if self.ind_y == data.0 { self.stat |= 0x02; }
+            if (self.ind_y - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
             0
         }
 
 
         fn dec(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.writeback(data.1, data.0 - 1);
+            self.examine_status(data.0 - 1);
             0
         }
 
         
         fn dex(&mut self, mode: &AddressingMode) -> u8 {
-            let data = self.fetch_instruction_data(mode);
+            self.ind_x -= 1;
+            self.examine_status(self.ind_x);
             0
         }
 
 
         fn dey(&mut self, mode: &AddressingMode) -> u8 {
-            let data = self.fetch_instruction_data(mode);
+            self.ind_y -= 1;
+            self.examine_status(self.ind_y);
             0
         }
 
 
         fn eor(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.acc ^= data.0;
+            self.examine_status(self.acc);
             0
         }
 
 
         fn inc(&mut self, mode: &AddressingMode) -> u8 {
+            let data = self.fetch_instruction_data(mode);
+            self.writeback(data.1, data.0 + 1);
+            self.examine_status(data.0 + 1);
             0
         }
 
         fn inx(&mut self, mode: &AddressingMode) -> u8 {
+            self.ind_x += 1;
+            self.examine_status(self.ind_x);
             0
         }
 
         fn iny(&mut self, mode: &AddressingMode) -> u8 {
+            self.ind_y += 1;
+            self.examine_status(self.ind_y);
             0
+        }
+
+
+        //JMP Instruction
+        fn jmp(&mut self, mode: &AddressingMode) {
+
+        }
+
+
+        fn jsr(&mut self) {
+
         }
 
 
         fn lda(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.acc = data.0;
+            self.examine_status(self.acc);
             0
         }
 
         
         fn ldx(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.ind_x = data.0;
+            self.examine_status(self.ind_x);
             0
         }
 
 
         fn ldy(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.ind_y = data.0;
+            self.examine_status(self.ind_y);
             0
         }
 
 
         fn lsr(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            let temp = data.0 >> 1;
+            match mode {
+                AddressingMode::Accumulator => {self.acc = temp},
+                _ => {self.writeback(data.1, temp)}
+            }
+            self.stat &= 0xFE;
+            self.stat |= (data.0 & 0x01);
+            self.examine_status(temp);
             0
+        }
+
+
+        //Does nothing!
+        fn nop() {
+
         }
 
         
         fn ora(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            self.acc |= data.0;
+            self.examine_status(self.acc);
             0
         }
 
@@ -259,91 +332,126 @@ pub mod cpu {
         //Push instructions all as one function - push register onto stack
         //PHA, PHP
         fn push(&mut self, register: u8) {
-
+            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = register;
+            self.stck_pnt -= 1;
         }
 
 
         fn pla(&mut self, mode: &AddressingMode) -> u8 {
-            let data = self.fetch_instruction_data(mode);
+            self.acc = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];
+            self.stck_pnt += 1;
+            self.examine_status(self.acc);
             0
         }
 
         fn plp(&mut self, mode: &AddressingMode) -> u8 {
-            let data = self.fetch_instruction_data(mode);
+            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];
+            self.stck_pnt += 1;
             0
         }
 
 
         fn rol(&mut self, mode: &AddressingMode) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            let temp = data.0 << 1;
+            match mode {
+                AddressingMode::Accumulator => {self.acc = temp;},
+                _ => {self.writeback(data.1, temp);}
+            }
+            self.stat &= 0xFE;
+            self.stat |= (data.0 & 0x01) << 7;
+            self.examine_status(temp);
             0
         }
 
         fn ror(&mut self, mode: &AddressingMode, reg: u8) -> u8 {
             let data = self.fetch_instruction_data(mode);
+            let temp = data.0 >> 1;
+            match mode {
+                AddressingMode::Accumulator => {self.acc = temp;},
+                _ => {self.writeback(data.1, temp);}
+            }
+            self.stat &= 0xFE;
+            self.stat |= (data.0 & 0x01);
+            self.examine_status(temp);
             0
         }
 
 
+        fn rti() {
+
+        }
+
+
+        fn rts() {
+
+        }
+       
         fn sbc(&mut self, mode: &AddressingMode) -> u8 {
+            let data = self.fetch_instruction_data(mode);
+            let temp = (self.acc as u16) + ((data.0 as u16) ^ 0xFF) + (self.stat & 0x01) as u16;
+            self.stat &= 0xBE;
+            self.stat |= if temp & 0xFF00 > 0 {1} else {0};
+            self.stat |= if (temp ^ self.acc as u16) & (temp ^ ((data.0 as u16) ^ 0xFF)) & 0x0080 > 0 {0x40} else {0};
+            self.acc = (temp & 0xFF) as u8;
+            self.examine_status(self.acc);
             0
         }
 
 
-        fn sta(&mut self) {
-            
+        //STA, STX, STY as one function
+        fn store(&mut self, reg: u8, mode: &AddressingMode) {
+            let data = self.fetch_instruction_data(mode);
+            self.writeback(data.1, reg);
         }
 
-        //All set instructions as one functions
-        //STX, STY
-        fn stXY() -> u8 {
+
+        fn tax(&mut self) -> u8 {
+            self.ind_x = self.acc;
+            self.examine_status(self.ind_x);
             0
         }
 
 
-        fn tax() -> u8 {
+        fn tay(&mut self) -> u8 {
+            self.ind_y = self.acc;
+            self.examine_status(self.ind_y);
             0
         }
 
 
-        fn tay() -> u8 {
+        fn tsx(&mut self) -> u8 {
+            self.ind_x = self.stat;
+            self.examine_status(self.ind_x);
             0
         }
 
 
-        fn tsx() -> u8 {
+        fn txa(&mut self) -> u8 {
+            self.acc = self.ind_x;
+            self.examine_status(self.acc);
             0
         }
 
 
-        fn txa() -> u8 {
+        fn txs(&mut self) -> u8 {
+            self.stat = self.ind_x;
             0
         }
 
 
-        fn txs() -> u8 {
-            0
-        }
-
-
-        fn tya() -> u8 {
+        fn tya(&mut self) -> u8 {
+            self.acc = self.ind_y;
+            self.examine_status(self.acc);
             0
         }
 
 
         //Checking zero and negative flags
         fn examine_status(&mut self, value: u8) {
-            if value == 0 {
-                self.stat |= 0x02;
-            } else {
-                self.stat &= 0xFD;
-            }
-
-            if value & 0x80 == 0x80 {
-                self.stat |= 0x80;
-            } else {
-                self.stat &= 0x7F;
-            }
+            self.stat &= 0x7D;
+            self.stat |= if value == 0 {0x02} else {0};
+            self.stat |= if value & 0x80 == 0x80 {0x80} else {0}; 
         }
 
     }
