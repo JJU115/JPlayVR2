@@ -176,8 +176,30 @@ pub mod cpu {
 
 
         //BRK instruction forcibly triggers interrupt
+        /*
+            #  address R/W description
+            --- ------- --- -----------------------------------------------
+            1    PC     R  fetch opcode, increment PC
+            2    PC     R  read next instruction byte (and throw it away),
+                            increment PC
+            3  $0100,S  W  push PCH on stack, decrement S
+            4  $0100,S  W  push PCL on stack, decrement S
+            *** At this point, the signal status determines which interrupt vector is used ***
+            5  $0100,S  W  push P on stack (with B flag set), decrement S
+            6   $FFFE   R  fetch PCL, set I flag
+            7   $FFFF   R  fetch PCH
+        */
         fn brk(&mut self) {
+            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
+            self.cpu_ram[(0x0100 + self.stck_pnt - 1) as usize] = (self.prg_cnt & 0xFF) as u8;
+            self.stck_pnt -= 2;
 
+            self.stat |= 0x10;
+            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = self.stat | 0x30;
+            self.stck_pnt -= 1;
+
+            self.prg_cnt = self.cart.cpu_read(0xFFFE) as u16 | (self.cart.cpu_read(0xFFFF) << 8) as u16;
+            self.stat |= 0x04;
         }
 
         //AND mask with status register
@@ -266,14 +288,35 @@ pub mod cpu {
         }
 
 
-        //JMP Instruction
+        //JMP Instruction - Absolute or indirect addressing modes
         fn jmp(&mut self, mode: &AddressingMode) {
-
+            if let AddressingMode::Absolute = mode {
+                self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) << 8) as u16 | self.cart.cpu_read(self.prg_cnt) as u16;
+            } else {
+                let target = (self.cart.cpu_read(self.prg_cnt + 1) << 8) as u16 | 
+                    self.cart.cpu_read(self.prg_cnt) as u16;
+                
+                self.prg_cnt = (self.cart.cpu_read(target + 1) << 8) as u16 | self.cart.cpu_read(target) as u16;
+            }
         }
 
-
+        /*
+             #  address R/W description
+            --- ------- --- -------------------------------------------------
+            1    PC     R  fetch opcode, increment PC
+            2    PC     R  fetch low address byte, increment PC
+            3  $0100,S  R  internal operation (predecrement S?)
+            4  $0100,S  W  push PCH on stack, decrement S
+            5  $0100,S  W  push PCL on stack, decrement S
+            6    PC     R  copy low address byte to PCL, fetch high address
+                            byte to PCH
+        */
         fn jsr(&mut self) {
+            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
+            self.cpu_ram[(0x0100 + self.stck_pnt - 1) as usize] = (self.prg_cnt & 0xFF) as u8;
+            self.stck_pnt -= 2;
 
+            self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) << 8) as u16 | self.cart.cpu_read(self.prg_cnt) as u16;
         }
 
 
@@ -338,15 +381,15 @@ pub mod cpu {
 
 
         fn pla(&mut self, mode: &AddressingMode) -> u8 {
-            self.acc = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];
             self.stck_pnt += 1;
+            self.acc = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];         
             self.examine_status(self.acc);
             0
         }
 
         fn plp(&mut self, mode: &AddressingMode) -> u8 {
-            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];
             self.stck_pnt += 1;
+            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];          
             0
         }
 
@@ -377,14 +420,38 @@ pub mod cpu {
             0
         }
 
-
-        fn rti() {
-
+        /*
+             #  address R/W description
+        --- ------- --- -----------------------------------------------
+            1    PC     R  fetch opcode, increment PC
+            2    PC     R  read next instruction byte (and throw it away)
+            3  $0100,S  R  increment S
+            4  $0100,S  R  pull P from stack, increment S
+            5  $0100,S  R  pull PCL from stack, increment S
+            6  $0100,S  R  pull PCH from stack
+        */
+        fn rti(&mut self) {
+            self.stck_pnt += 1;
+            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];
+            self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt) as usize] << 8) as u16;
+            self.stck_pnt += 2;
         }
 
-
-        fn rts() {
-
+        /*
+            #  address R/W description
+        --- ------- --- -----------------------------------------------
+            1    PC     R  fetch opcode, increment PC
+            2    PC     R  read next instruction byte (and throw it away)
+            3  $0100,S  R  increment S
+            4  $0100,S  R  pull PCL from stack, increment S
+            5  $0100,S  R  pull PCH from stack
+            6    PC     R  increment PC
+        */
+        fn rts(&mut self) {
+            self.stck_pnt += 1;
+            self.prg_cnt = self.cpu_ram[(0x0100 + self.stck_pnt) as usize] as u16 | (self.cpu_ram[(0x0101 + self.stck_pnt) as usize] << 8) as u16;
+            self.stck_pnt += 1;
+            self.prg_cnt += 1;
         }
        
         fn sbc(&mut self, mode: &AddressingMode) -> u8 {
