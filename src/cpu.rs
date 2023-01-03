@@ -1,6 +1,4 @@
 pub mod cpu {
-    use std::ops::Add;
-
     use crate::cartridge::cartridge;
 
 
@@ -52,9 +50,13 @@ pub mod cpu {
                 0x2000..=0x3FFF => {
                     //PPU registers
                 },
+                0x4000..=0x4017 => {
+                    //APU registers
+                }
                 0x4020..=0xFFFF => {
                     self.cart.cpu_write(addr, value);
-                }
+                },
+                _ => ()
             }
         }
 
@@ -64,7 +66,7 @@ pub mod cpu {
             let opcode = self.cart.cpu_read(self.prg_cnt);
             self.prg_cnt += 1;
 
-            let instr_cycles = match opcode {
+            match opcode {
                 //ADC
                 0x69 => self.adc(&AddressingMode::Immediate),
                 0x65 => self.adc(&AddressingMode::ZeroPage),
@@ -76,7 +78,19 @@ pub mod cpu {
                 0x71 => self.adc(&AddressingMode::IndirectY),
 
                 //AND
-                _ => 0
+                0x29 => self.and(&AddressingMode::Immediate),
+                0x25 => self.and(&AddressingMode::ZeroPage),
+                0x35 => self.and(&AddressingMode::ZeroPageIndex(self.ind_x)),
+                0x2D => self.and(&AddressingMode::Absolute),
+                0x3D => self.and(&AddressingMode::AbsoluteIndex(self.ind_x)),
+                0x39 => self.and(&AddressingMode::AbsoluteIndex(self.ind_y)),
+                0x21 => self.and(&AddressingMode::IndirectX),
+                0x31 => self.and(&AddressingMode::IndirectY),
+
+                //Branches
+                0x90 | 0xB0 | 0xF0 | 0x30 | 0xD0 | 0x10 | 0x50 | 0x70 => self.branch(opcode >> 6, (opcode >> 5) &0x01),
+
+                _ => ()
             };
             0
         }
@@ -99,6 +113,10 @@ pub mod cpu {
                     //Possible oops cycle here
                     let addr = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | (data + ind) as u16;
                     self.prg_cnt += 1;
+                    if (data + ind) as u16 > 255 {
+                        //'oops' cycle
+                    }
+
                     (self.cart.cpu_read(addr), addr)
                 },
                 AddressingMode::ZeroPageIndex(ind) => (self.cpu_ram[(data + ind) as usize], data as u16),
@@ -113,6 +131,9 @@ pub mod cpu {
                     let low = self.cart.cpu_read(data as u16);
                     let high = self.cart.cpu_read((data + 1) as u16);
                     let addr = ((high as u16) << 8 | low as u16) + self.ind_y as u16;
+                    if (low + self.ind_y) as u16 > 255 {
+                        //'oops' cycle
+                    }
                     (self.cart.cpu_read(addr), addr) 
                 },
                 _ => (0,0)
@@ -145,7 +166,7 @@ pub mod cpu {
 
 
         fn asl(&mut self, mode: &AddressingMode) {
-            let data = self.fetch_instruction_data(mode);
+            let mut data = self.fetch_instruction_data(mode);
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x80) >> 7;
             data.0 = data.0 << 1;
@@ -161,7 +182,7 @@ pub mod cpu {
         fn bit(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.stat &= 0x3D;
-            self.stat |= (data.0 & 0xC0);
+            self.stat |= data.0 & 0xC0;
             if self.acc & data.0 == 0 {
                 self.stat |= 0x02;
             }
@@ -170,8 +191,25 @@ pub mod cpu {
         //Branch instructions can all be handled in one function
         //If flag equals value, take the branch, remember branching is signed
         //Another potential 'oops' cycle here
-        fn branch(&mut self, flag: u8, value: u8) -> u8 {
-            0
+        fn branch(&mut self, flag: u8, value: u8) {
+            let comp: u8 = match flag {
+                0 => self.stat >> 7,
+                1 => (self.stat & 0x40) >> 6,
+                2 => self.stat & 0x01,
+                3 => (self.stat & 0x02) >> 1,
+                _ => 0
+            };
+
+            let op = self.cart.cpu_read(self.prg_cnt);
+            self.prg_cnt += 1;
+
+            if comp == value {
+                if ((self.prg_cnt + op as u16) & 0x0F00) != (self.prg_cnt & 0x0F00) {
+                    //Add cycle
+                }
+                self.prg_cnt += op as u16;
+                //Add cycle
+            }
         }
 
 
@@ -190,12 +228,12 @@ pub mod cpu {
             7   $FFFF   R  fetch PCH
         */
         fn brk(&mut self) {
-            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
-            self.cpu_ram[(0x0100 + self.stck_pnt - 1) as usize] = (self.prg_cnt & 0xFF) as u8;
+            self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
+            self.cpu_ram[(0x0100 + (self.stck_pnt - 1) as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
             self.stck_pnt -= 2;
 
             self.stat |= 0x10;
-            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = self.stat | 0x30;
+            self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = self.stat | 0x30;
             self.stck_pnt -= 1;
 
             self.prg_cnt = self.cart.cpu_read(0xFFFE) as u16 | (self.cart.cpu_read(0xFFFF) << 8) as u16;
@@ -208,83 +246,73 @@ pub mod cpu {
         }
 
 
-        fn cmp(&mut self, mode: &AddressingMode) -> u8 {
+        fn cmp(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.stat &= 0x7C;
             if self.acc >= data.0 { self.stat |= 0x01; }
             if self.acc == data.0 { self.stat |= 0x02; }
             if (self.acc - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
-            0
         }
 
         
-        fn cpx(&mut self, mode: &AddressingMode, reg: u8) -> u8 {
+        fn cpx(&mut self, mode: &AddressingMode, reg: u8) {
             let data = self.fetch_instruction_data(mode);
             self.stat &= 0x7C;
             if self.ind_x >= data.0 { self.stat |= 0x01; }
             if self.ind_x == data.0 { self.stat |= 0x02; }
             if (self.ind_x - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
-            0
         }
 
 
-        fn cpy(&mut self, mode: &AddressingMode, reg: u8) -> u8 {
+        fn cpy(&mut self, mode: &AddressingMode, reg: u8) {
             let data = self.fetch_instruction_data(mode);
             self.stat &= 0x7C;
             if self.ind_y >= data.0 { self.stat |= 0x01; }
             if self.ind_y == data.0 { self.stat |= 0x02; }
             if (self.ind_y - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
-            0
         }
 
 
-        fn dec(&mut self, mode: &AddressingMode) -> u8 {
+        fn dec(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.writeback(data.1, data.0 - 1);
             self.examine_status(data.0 - 1);
-            0
         }
 
         
-        fn dex(&mut self, mode: &AddressingMode) -> u8 {
+        fn dex(&mut self, mode: &AddressingMode) {
             self.ind_x -= 1;
             self.examine_status(self.ind_x);
-            0
         }
 
 
-        fn dey(&mut self, mode: &AddressingMode) -> u8 {
+        fn dey(&mut self, mode: &AddressingMode) {
             self.ind_y -= 1;
             self.examine_status(self.ind_y);
-            0
         }
 
 
-        fn eor(&mut self, mode: &AddressingMode) -> u8 {
+        fn eor(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.acc ^= data.0;
             self.examine_status(self.acc);
-            0
         }
 
 
-        fn inc(&mut self, mode: &AddressingMode) -> u8 {
+        fn inc(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.writeback(data.1, data.0 + 1);
             self.examine_status(data.0 + 1);
-            0
         }
 
-        fn inx(&mut self, mode: &AddressingMode) -> u8 {
+        fn inx(&mut self, mode: &AddressingMode) {
             self.ind_x += 1;
             self.examine_status(self.ind_x);
-            0
         }
 
-        fn iny(&mut self, mode: &AddressingMode) -> u8 {
+        fn iny(&mut self, mode: &AddressingMode) {
             self.ind_y += 1;
             self.examine_status(self.ind_y);
-            0
         }
 
 
@@ -312,39 +340,36 @@ pub mod cpu {
                             byte to PCH
         */
         fn jsr(&mut self) {
-            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
-            self.cpu_ram[(0x0100 + self.stck_pnt - 1) as usize] = (self.prg_cnt & 0xFF) as u8;
+            self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
+            self.cpu_ram[(0x0100 + (self.stck_pnt - 1) as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
             self.stck_pnt -= 2;
 
             self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) << 8) as u16 | self.cart.cpu_read(self.prg_cnt) as u16;
         }
 
 
-        fn lda(&mut self, mode: &AddressingMode) -> u8 {
+        fn lda(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.acc = data.0;
             self.examine_status(self.acc);
-            0
         }
 
         
-        fn ldx(&mut self, mode: &AddressingMode) -> u8 {
+        fn ldx(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.ind_x = data.0;
             self.examine_status(self.ind_x);
-            0
         }
 
 
-        fn ldy(&mut self, mode: &AddressingMode) -> u8 {
+        fn ldy(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.ind_y = data.0;
             self.examine_status(self.ind_y);
-            0
         }
 
 
-        fn lsr(&mut self, mode: &AddressingMode) -> u8 {
+        fn lsr(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             let temp = data.0 >> 1;
             match mode {
@@ -354,7 +379,6 @@ pub mod cpu {
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x01);
             self.examine_status(temp);
-            0
         }
 
 
@@ -364,37 +388,34 @@ pub mod cpu {
         }
 
         
-        fn ora(&mut self, mode: &AddressingMode) -> u8 {
+        fn ora(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.acc |= data.0;
             self.examine_status(self.acc);
-            0
         }
 
 
         //Push instructions all as one function - push register onto stack
         //PHA, PHP
         fn push(&mut self, register: u8) {
-            self.cpu_ram[(0x0100 + self.stck_pnt) as usize] = register;
+            self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = register;
             self.stck_pnt -= 1;
         }
 
 
-        fn pla(&mut self, mode: &AddressingMode) -> u8 {
+        fn pla(&mut self, mode: &AddressingMode) {
             self.stck_pnt += 1;
-            self.acc = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];         
+            self.acc = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];         
             self.examine_status(self.acc);
-            0
         }
 
-        fn plp(&mut self, mode: &AddressingMode) -> u8 {
+        fn plp(&mut self, mode: &AddressingMode) {
             self.stck_pnt += 1;
-            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];          
-            0
+            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];          
         }
 
 
-        fn rol(&mut self, mode: &AddressingMode) -> u8 {
+        fn rol(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             let temp = data.0 << 1;
             match mode {
@@ -404,10 +425,9 @@ pub mod cpu {
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x01) << 7;
             self.examine_status(temp);
-            0
         }
 
-        fn ror(&mut self, mode: &AddressingMode, reg: u8) -> u8 {
+        fn ror(&mut self, mode: &AddressingMode, reg: u8) {
             let data = self.fetch_instruction_data(mode);
             let temp = data.0 >> 1;
             match mode {
@@ -417,7 +437,6 @@ pub mod cpu {
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x01);
             self.examine_status(temp);
-            0
         }
 
         /*
@@ -432,8 +451,8 @@ pub mod cpu {
         */
         fn rti(&mut self) {
             self.stck_pnt += 1;
-            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt) as usize];
-            self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt) as usize] << 8) as u16;
+            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];
+            self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt as u16) as usize] << 8) as u16;
             self.stck_pnt += 2;
         }
 
@@ -449,12 +468,12 @@ pub mod cpu {
         */
         fn rts(&mut self) {
             self.stck_pnt += 1;
-            self.prg_cnt = self.cpu_ram[(0x0100 + self.stck_pnt) as usize] as u16 | (self.cpu_ram[(0x0101 + self.stck_pnt) as usize] << 8) as u16;
+            self.prg_cnt = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] << 8) as u16;
             self.stck_pnt += 1;
             self.prg_cnt += 1;
         }
        
-        fn sbc(&mut self, mode: &AddressingMode) -> u8 {
+        fn sbc(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             let temp = (self.acc as u16) + ((data.0 as u16) ^ 0xFF) + (self.stat & 0x01) as u16;
             self.stat &= 0xBE;
@@ -462,7 +481,6 @@ pub mod cpu {
             self.stat |= if (temp ^ self.acc as u16) & (temp ^ ((data.0 as u16) ^ 0xFF)) & 0x0080 > 0 {0x40} else {0};
             self.acc = (temp & 0xFF) as u8;
             self.examine_status(self.acc);
-            0
         }
 
 
@@ -473,44 +491,38 @@ pub mod cpu {
         }
 
 
-        fn tax(&mut self) -> u8 {
+        fn tax(&mut self) {
             self.ind_x = self.acc;
             self.examine_status(self.ind_x);
-            0
         }
 
 
-        fn tay(&mut self) -> u8 {
+        fn tay(&mut self) {
             self.ind_y = self.acc;
             self.examine_status(self.ind_y);
-            0
         }
 
 
-        fn tsx(&mut self) -> u8 {
+        fn tsx(&mut self) {
             self.ind_x = self.stat;
             self.examine_status(self.ind_x);
-            0
         }
 
 
-        fn txa(&mut self) -> u8 {
+        fn txa(&mut self) {
             self.acc = self.ind_x;
             self.examine_status(self.acc);
-            0
         }
 
 
-        fn txs(&mut self) -> u8 {
+        fn txs(&mut self) {
             self.stat = self.ind_x;
-            0
         }
 
 
-        fn tya(&mut self) -> u8 {
+        fn tya(&mut self) {
             self.acc = self.ind_y;
             self.examine_status(self.acc);
-            0
         }
 
 
