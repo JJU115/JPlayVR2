@@ -1,7 +1,6 @@
 pub mod cpu {
+
     use crate::cartridge::cartridge;
-
-
     enum AddressingMode {
         Implied,
         Accumulator,
@@ -14,6 +13,21 @@ pub mod cpu {
         ZeroPageIndex(u8),
         IndirectX,
         IndirectY
+    }
+
+    enum Instruction {
+        ADC(AddressingMode),AND(AddressingMode),ASL(AddressingMode),BCC(AddressingMode),BCS(AddressingMode),
+        BEQ(AddressingMode),BIT(AddressingMode),BMI(AddressingMode),BNE(AddressingMode),BPL(AddressingMode),
+        BRK(AddressingMode),BVC(AddressingMode),BVS(AddressingMode),CLC(AddressingMode),CLD(AddressingMode),
+        CLI(AddressingMode),CLV(AddressingMode),CMP(AddressingMode),CPX(AddressingMode),CPY(AddressingMode),
+        DEC(AddressingMode),DEX(AddressingMode),DEY(AddressingMode),EOR(AddressingMode),INC(AddressingMode),
+        INX(AddressingMode),INY(AddressingMode),JMP(AddressingMode),JSR(AddressingMode),LDA(AddressingMode),
+        LDX(AddressingMode),LDY(AddressingMode),LSR(AddressingMode),NOP(AddressingMode),ORA(AddressingMode),
+        PHA(AddressingMode),PHP(AddressingMode),PLA(AddressingMode),PLP(AddressingMode),ROL(AddressingMode),
+        ROR(AddressingMode),RTI(AddressingMode),RTS(AddressingMode),SBC(AddressingMode),SEC(AddressingMode),
+        SED(AddressingMode),SEI(AddressingMode),STA(AddressingMode),STX(AddressingMode),STY(AddressingMode),
+        TAX(AddressingMode),TAY(AddressingMode),TSX(AddressingMode),TXA(AddressingMode),TXS(AddressingMode),
+        TYA(AddressingMode),
     }
 
     pub struct Mos6502<'a> {
@@ -29,6 +43,8 @@ pub mod cpu {
 
         //Internal RAM
         pub cpu_ram: Vec<u8>,
+
+        pub extra_cycles: u8,
     }
 
 
@@ -64,6 +80,7 @@ pub mod cpu {
         pub fn execute_instruction(&mut self) -> u8 {
             //Fetch the opcode and the next byte
             let opcode = self.cart.cpu_read(self.prg_cnt);
+            self.extra_cycles = 0;
             self.prg_cnt += 1;
 
             match opcode {
@@ -88,7 +105,7 @@ pub mod cpu {
                 0x31 => self.and(&AddressingMode::IndirectY),
 
                 //Branches
-                0x90 | 0xB0 | 0xF0 | 0x30 | 0xD0 | 0x10 | 0x50 | 0x70 => self.branch(opcode >> 6, (opcode >> 5) &0x01),
+                0x90 | 0xB0 | 0xF0 | 0x30 | 0xD0 | 0x10 | 0x50 | 0x70 => {self.extra_cycles += self.branch(opcode >> 6, (opcode >> 5) &0x01);},
 
                 _ => ()
             };
@@ -132,7 +149,8 @@ pub mod cpu {
                     let high = self.cart.cpu_read((data + 1) as u16);
                     let addr = ((high as u16) << 8 | low as u16) + self.ind_y as u16;
                     if (low + self.ind_y) as u16 > 255 {
-                        //'oops' cycle
+                        //'oops' cycle\
+                        self.extra_cycles += 1;
                     }
                     (self.cart.cpu_read(addr), addr) 
                 },
@@ -170,7 +188,7 @@ pub mod cpu {
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x80) >> 7;
             data.0 = data.0 << 1;
-            if let mode = AddressingMode::Accumulator {
+            if let AddressingMode::Accumulator = mode {
                 self.acc = data.0;
             } else {
                 self.writeback(data.1, data.0)
@@ -191,7 +209,7 @@ pub mod cpu {
         //Branch instructions can all be handled in one function
         //If flag equals value, take the branch, remember branching is signed
         //Another potential 'oops' cycle here
-        fn branch(&mut self, flag: u8, value: u8) {
+        fn branch(&mut self, flag: u8, value: u8) -> u8 {
             let comp: u8 = match flag {
                 0 => self.stat >> 7,
                 1 => (self.stat & 0x40) >> 6,
@@ -200,16 +218,19 @@ pub mod cpu {
                 _ => 0
             };
 
-            let op = self.cart.cpu_read(self.prg_cnt);
+            let op: u8 = self.cart.cpu_read(self.prg_cnt);
+            let mut extra: u8 = 0;
             self.prg_cnt += 1;
 
             if comp == value {
                 if ((self.prg_cnt + op as u16) & 0x0F00) != (self.prg_cnt & 0x0F00) {
-                    //Add cycle
+                    extra += 1;
                 }
                 self.prg_cnt += op as u16;
-                //Add cycle
+                extra += 1;
+
             }
+            extra
         }
 
 
@@ -372,9 +393,10 @@ pub mod cpu {
         fn lsr(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             let temp = data.0 >> 1;
-            match mode {
-                AddressingMode::Accumulator => {self.acc = temp},
-                _ => {self.writeback(data.1, temp)}
+            if let AddressingMode::Accumulator = mode {
+                self.acc = temp;
+            } else {
+                self.writeback(data.1, temp);
             }
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x01);
@@ -418,9 +440,10 @@ pub mod cpu {
         fn rol(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             let temp = data.0 << 1;
-            match mode {
-                AddressingMode::Accumulator => {self.acc = temp;},
-                _ => {self.writeback(data.1, temp);}
+            if let AddressingMode::Accumulator = mode {
+                self.acc = temp;
+            } else {
+                self.writeback(data.1, temp);
             }
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x01) << 7;
@@ -430,9 +453,10 @@ pub mod cpu {
         fn ror(&mut self, mode: &AddressingMode, reg: u8) {
             let data = self.fetch_instruction_data(mode);
             let temp = data.0 >> 1;
-            match mode {
-                AddressingMode::Accumulator => {self.acc = temp;},
-                _ => {self.writeback(data.1, temp);}
+            if let AddressingMode::Accumulator = mode {
+                self.acc = temp;
+            } else {
+                self.writeback(data.1, temp);
             }
             self.stat &= 0xFE;
             self.stat |= (data.0 & 0x01);

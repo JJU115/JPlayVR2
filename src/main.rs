@@ -26,6 +26,7 @@ fn main() {
         stck_pnt: 0xFD,
         prg_cnt: 0xFFFC,
         cpu_ram: vec![0; 2048],
+        extra_cycles: 0,
     };
 
     let nes  = console::console::Console {
