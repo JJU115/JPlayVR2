@@ -12,6 +12,8 @@
 pub mod cpu {
 
     use crate::cartridge::cartridge;
+
+    #[derive(Debug, Copy, Clone)]
     enum AddressingMode {
         Implied,
         Accumulator,
@@ -103,7 +105,7 @@ pub mod cpu {
                 Instruction::STA(AddressingMode::ZeroPage), Instruction::STX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::DEY(AddressingMode::Implied), Instruction::NOP(AddressingMode::Immediate),
                 Instruction::TXA(AddressingMode::Accumulator), Instruction::NAI, Instruction::STY(AddressingMode::Absolute), Instruction::STA(AddressingMode::Absolute), Instruction::STX(AddressingMode::Absolute),
                 Instruction::NAI, Instruction::BCC(AddressingMode::Relative), Instruction::STA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::STY(AddressingMode::ZeroPageX), Instruction::STA(AddressingMode::Immediate), Instruction::STX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::TYA(AddressingMode::Implied), 
+                Instruction::STY(AddressingMode::ZeroPageX), Instruction::STA(AddressingMode::Immediate), Instruction::STX(AddressingMode::ZeroPageY), Instruction::NAI, Instruction::TYA(AddressingMode::Implied), 
                 Instruction::STA(AddressingMode::AbsoluteIndexY), Instruction::TXS(AddressingMode::Implied), Instruction::NAI, Instruction::NAI, Instruction::STA(AddressingMode::AbsoluteIndexX),
                 Instruction::NAI, Instruction::NAI,
 
@@ -111,9 +113,9 @@ pub mod cpu {
                 Instruction::LDA(AddressingMode::ZeroPage), Instruction::LDX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::TAY(AddressingMode::Implied), Instruction::LDA(AddressingMode::Immediate),
                 Instruction::TAX(AddressingMode::Accumulator), Instruction::NAI, Instruction::LDY(AddressingMode::Absolute), Instruction::LDA(AddressingMode::Absolute), Instruction::LDX(AddressingMode::Absolute),
                 Instruction::NAI, Instruction::BCS(AddressingMode::Relative), Instruction::LDA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::LDY(AddressingMode::ZeroPageX), Instruction::LDA(AddressingMode::Immediate), Instruction::LDX(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::CLV(AddressingMode::Implied), 
+                Instruction::LDY(AddressingMode::ZeroPageX), Instruction::LDA(AddressingMode::Immediate), Instruction::LDX(AddressingMode::ZeroPageY), Instruction::NAI, Instruction::CLV(AddressingMode::Implied), 
                 Instruction::LDA(AddressingMode::AbsoluteIndexY), Instruction::TSX(AddressingMode::Implied), Instruction::NAI, Instruction::LDY(AddressingMode::AbsoluteIndexX), Instruction::LDA(AddressingMode::AbsoluteIndexX),
-                Instruction::LDX(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+                Instruction::LDX(AddressingMode::AbsoluteIndexY), Instruction::NAI,
 
                 Instruction::CPY(AddressingMode::Immediate), Instruction::CMP(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI,Instruction::CPY(AddressingMode::ZeroPage),
                 Instruction::CMP(AddressingMode::ZeroPage), Instruction::DEC(AddressingMode::ZeroPage), Instruction::NAI, Instruction::INY(AddressingMode::Implied), Instruction::CMP(AddressingMode::Immediate),
@@ -198,8 +200,8 @@ pub mod cpu {
             self.extra_cycles = 0;
             self.prg_cnt += 1;
 
-            match opcode {
-                
+            match self.instruction_array[opcode as usize] {
+                Instruction::ADC(mode) => self.adc(&mode),
 
                 _ => ()
             };
