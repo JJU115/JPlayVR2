@@ -1,3 +1,14 @@
+//TODO
+/*
+    1. sort out signed branching in branch function --DONE
+    2. check 'oops' cycles are properly calculated --TODO
+    3. finish instruction match block -- array of the instruction enum? then match on that?
+    4. verify cycle accuracy and proper number returned from execute_instruction function
+
+
+*/
+
+
 pub mod cpu {
 
     use crate::cartridge::cartridge;
@@ -9,8 +20,10 @@ pub mod cpu {
         Absolute,
         Relative,
         Indirect,
-        AbsoluteIndex(u8),
-        ZeroPageIndex(u8),
+        AbsoluteIndexX,
+        AbsoluteIndexY,
+        ZeroPageX,
+        ZeroPageY,
         IndirectX,
         IndirectY
     }
@@ -27,34 +40,136 @@ pub mod cpu {
         ROR(AddressingMode),RTI(AddressingMode),RTS(AddressingMode),SBC(AddressingMode),SEC(AddressingMode),
         SED(AddressingMode),SEI(AddressingMode),STA(AddressingMode),STX(AddressingMode),STY(AddressingMode),
         TAX(AddressingMode),TAY(AddressingMode),TSX(AddressingMode),TXA(AddressingMode),TXS(AddressingMode),
-        TYA(AddressingMode),
+        TYA(AddressingMode),NAI
     }
+
 
     pub struct Mos6502<'a> {
         pub cart: &'a cartridge::Cartridge,
 
         //Registers
-        pub acc: u8,
-        pub ind_x: u8,
-        pub ind_y: u8,
-        pub stat: u8,
-        pub stck_pnt: u8,
-        pub prg_cnt: u16,
+        acc: u8,
+        ind_x: u8,
+        ind_y: u8,
+        stat: u8,
+        stck_pnt: u8,
+        prg_cnt: u16,
 
         //Internal RAM
-        pub cpu_ram: Vec<u8>,
+        cpu_ram: Vec<u8>,
 
-        pub extra_cycles: u8,
+        //'oops' cycles and the like
+        extra_cycles: u8,
+
+        instruction_array: Vec<Instruction>,
     }
 
 
-
     impl Mos6502<'_> {
+
+        pub fn new(cart: &cartridge::Cartridge) -> Mos6502 {
+            let instructions: Vec<Instruction> = vec![
+                Instruction::BRK(AddressingMode::Implied),  Instruction::ORA(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage),
+                Instruction::ORA(AddressingMode::ZeroPage), Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PHP(AddressingMode::Implied), Instruction::ORA(AddressingMode::Immediate),
+                Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::NOP(AddressingMode::Absolute), Instruction::ORA(AddressingMode::Absolute), Instruction::ASL(AddressingMode::Absolute),
+                Instruction::NAI,                           Instruction::BPL(AddressingMode::Relative), Instruction::ORA(AddressingMode::IndirectY), Instruction::NAI,Instruction::NAI, Instruction::NOP(AddressingMode::Absolute),
+                Instruction::ORA(AddressingMode::Immediate),Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::CLC(AddressingMode::Implied), Instruction::ORA(AddressingMode::AbsoluteIndexY),
+                Instruction::NOP(AddressingMode::Implied),  Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::ORA(AddressingMode::AbsoluteIndexX), Instruction::ASL(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+
+                Instruction::JSR(AddressingMode::Implied), Instruction::AND(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI,Instruction::BIT(AddressingMode::ZeroPage),
+                Instruction::AND(AddressingMode::ZeroPage), Instruction::ROL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PLP(AddressingMode::Implied), Instruction::AND(AddressingMode::Immediate),
+                Instruction::ROL(AddressingMode::Accumulator), Instruction::NAI, Instruction::BIT(AddressingMode::Absolute), Instruction::AND(AddressingMode::Absolute), Instruction::ROL(AddressingMode::Absolute),
+                Instruction::NAI, Instruction::BMI(AddressingMode::Relative), Instruction::AND(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
+                Instruction::NOP(AddressingMode::Absolute), Instruction::AND(AddressingMode::Immediate), Instruction::ROL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::SEC(AddressingMode::Implied), 
+                Instruction::AND(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::AND(AddressingMode::AbsoluteIndexX),
+                Instruction::ROL(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+
+                Instruction::RTI(AddressingMode::Implied), Instruction::EOR(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage),
+                Instruction::EOR(AddressingMode::ZeroPage), Instruction::LSR(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PHA(AddressingMode::Implied), Instruction::EOR(AddressingMode::Immediate),
+                Instruction::LSR(AddressingMode::Accumulator), Instruction::NAI, Instruction::JMP(AddressingMode::Absolute), Instruction::EOR(AddressingMode::Absolute), Instruction::LSR(AddressingMode::Absolute),
+                Instruction::NAI, Instruction::BVC(AddressingMode::Relative), Instruction::EOR(AddressingMode::IndirectY), Instruction::NAI,Instruction::NAI, Instruction::NOP(AddressingMode::Absolute),
+                Instruction::EOR(AddressingMode::ZeroPageX), Instruction::LSR(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::CLI(AddressingMode::Implied), Instruction::EOR(AddressingMode::AbsoluteIndexY),
+                Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::EOR(AddressingMode::AbsoluteIndexX), Instruction::LSR(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+
+                Instruction::RTS(AddressingMode::Implied), Instruction::ADC(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI,Instruction::NOP(AddressingMode::ZeroPage),
+                Instruction::ADC(AddressingMode::ZeroPage), Instruction::ROR(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PLA(AddressingMode::Implied), Instruction::ADC(AddressingMode::Immediate),
+                Instruction::ROR(AddressingMode::Accumulator), Instruction::NAI, Instruction::JMP(AddressingMode::Indirect), Instruction::ADC(AddressingMode::Absolute), Instruction::ROR(AddressingMode::Absolute),
+                Instruction::NAI, Instruction::BVS(AddressingMode::Relative), Instruction::ADC(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
+                Instruction::NOP(AddressingMode::ZeroPageX), Instruction::ADC(AddressingMode::Immediate), Instruction::ROR(AddressingMode::ZeroPage), Instruction::NAI, Instruction::SEI(AddressingMode::Implied), 
+                Instruction::ADC(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::ADC(AddressingMode::AbsoluteIndexX),
+                Instruction::ROR(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+
+                Instruction::NOP(AddressingMode::Implied), Instruction::STA(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI,Instruction::STY(AddressingMode::ZeroPage),
+                Instruction::STA(AddressingMode::ZeroPage), Instruction::STX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::DEY(AddressingMode::Implied), Instruction::NOP(AddressingMode::Immediate),
+                Instruction::TXA(AddressingMode::Accumulator), Instruction::NAI, Instruction::STY(AddressingMode::Absolute), Instruction::STA(AddressingMode::Absolute), Instruction::STX(AddressingMode::Absolute),
+                Instruction::NAI, Instruction::BCC(AddressingMode::Relative), Instruction::STA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
+                Instruction::STY(AddressingMode::ZeroPageX), Instruction::STA(AddressingMode::Immediate), Instruction::STX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::TYA(AddressingMode::Implied), 
+                Instruction::STA(AddressingMode::AbsoluteIndexY), Instruction::TXS(AddressingMode::Implied), Instruction::NAI, Instruction::NAI, Instruction::STA(AddressingMode::AbsoluteIndexX),
+                Instruction::NAI, Instruction::NAI,
+
+                Instruction::LDY(AddressingMode::Immediate), Instruction::LDA(AddressingMode::IndirectX), Instruction::LDX(AddressingMode::Immediate), Instruction::NAI,Instruction::LDY(AddressingMode::ZeroPage),
+                Instruction::LDA(AddressingMode::ZeroPage), Instruction::LDX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::TAY(AddressingMode::Implied), Instruction::LDA(AddressingMode::Immediate),
+                Instruction::TAX(AddressingMode::Accumulator), Instruction::NAI, Instruction::LDY(AddressingMode::Absolute), Instruction::LDA(AddressingMode::Absolute), Instruction::LDX(AddressingMode::Absolute),
+                Instruction::NAI, Instruction::BCS(AddressingMode::Relative), Instruction::LDA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
+                Instruction::LDY(AddressingMode::ZeroPageX), Instruction::LDA(AddressingMode::Immediate), Instruction::LDX(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::CLV(AddressingMode::Implied), 
+                Instruction::LDA(AddressingMode::AbsoluteIndexY), Instruction::TSX(AddressingMode::Implied), Instruction::NAI, Instruction::LDY(AddressingMode::AbsoluteIndexX), Instruction::LDA(AddressingMode::AbsoluteIndexX),
+                Instruction::LDX(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+
+                Instruction::CPY(AddressingMode::Immediate), Instruction::CMP(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI,Instruction::CPY(AddressingMode::ZeroPage),
+                Instruction::CMP(AddressingMode::ZeroPage), Instruction::DEC(AddressingMode::ZeroPage), Instruction::NAI, Instruction::INY(AddressingMode::Implied), Instruction::CMP(AddressingMode::Immediate),
+                Instruction::DEX(AddressingMode::Implied), Instruction::NAI, Instruction::CPY(AddressingMode::Absolute), Instruction::CMP(AddressingMode::Absolute), Instruction::DEC(AddressingMode::Absolute),
+                Instruction::NAI, Instruction::BNE(AddressingMode::Relative), Instruction::CMP(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
+                Instruction::NOP(AddressingMode::ZeroPageX), Instruction::CMP(AddressingMode::ZeroPageX), Instruction::DEC(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::CLD(AddressingMode::Implied), 
+                Instruction::CMP(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::CMP(AddressingMode::AbsoluteIndexX),
+                Instruction::DEC(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+
+                Instruction::CPX(AddressingMode::Immediate), Instruction::SBC(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI,Instruction::CPX(AddressingMode::ZeroPage),
+                Instruction::SBC(AddressingMode::ZeroPage), Instruction::INC(AddressingMode::ZeroPage), Instruction::NAI, Instruction::INX(AddressingMode::Implied), Instruction::SBC(AddressingMode::Immediate),
+                Instruction::DEX(AddressingMode::Implied), Instruction::NAI, Instruction::CPX(AddressingMode::Absolute), Instruction::SBC(AddressingMode::Absolute), Instruction::INC(AddressingMode::Absolute),
+                Instruction::NAI, Instruction::BEQ(AddressingMode::Relative), Instruction::SBC(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
+                Instruction::NOP(AddressingMode::ZeroPageX), Instruction::SBC(AddressingMode::ZeroPageX), Instruction::INC(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::SED(AddressingMode::Implied), 
+                Instruction::SBC(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::SBC(AddressingMode::AbsoluteIndexX),
+                Instruction::INC(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+            ];
+
+            Mos6502 { 
+                cart: cart, 
+                acc: 0, 
+                ind_x: 0, 
+                ind_y: 0, 
+                stat: 0x34, 
+                stck_pnt: 0xFD, 
+                prg_cnt: 0xFFFC, 
+                cpu_ram: vec![0; 2048], 
+                extra_cycles: 0, 
+                instruction_array: instructions
+            }
+        }
+
 
         pub fn reset(&mut self) {
             self.stat = self.stat | 0x04;
             self.stck_pnt = self.stck_pnt - 3;
             self.prg_cnt = ((self.cart.cpu_read(0xFFFC) as u16) << 8) | (self.cart.cpu_read(0xFFFD) as u16);
+        }
+
+
+        fn fetch_from_address(&mut self, addr: u16) -> u8 {
+            match addr {
+                //$0000–$1FFF Internal ram, mirrors every $0800 addresses
+                0x0000..=0x1FFF => self.cpu_ram[(addr & 0x07FF) as usize],
+
+                //$2000–$2007 PPU registers, $2008–$3FFF mirrors $2000–$2007
+                0x2000..=0x2007 => 0,
+
+                //$4000–$4015 NES APU registers, anything other than $4015 produces open bus behavior
+                0x4015 => 0,
+
+                //$4020–$FFFF Cartridge space: PRG ROM, PRG RAM, and mapper registers 
+                0x4020..=0xFFFF => self.cart.cpu_read(addr),
+
+                _ => 0
+            }
         }
 
 
@@ -84,28 +199,7 @@ pub mod cpu {
             self.prg_cnt += 1;
 
             match opcode {
-                //ADC
-                0x69 => self.adc(&AddressingMode::Immediate),
-                0x65 => self.adc(&AddressingMode::ZeroPage),
-                0x75 => self.adc(&AddressingMode::ZeroPageIndex(self.ind_x)),
-                0x6D => self.adc(&AddressingMode::Absolute),
-                0x7D => self.adc(&AddressingMode::AbsoluteIndex(self.ind_x)),
-                0x79 => self.adc(&AddressingMode::AbsoluteIndex(self.ind_y)),
-                0x61 => self.adc(&AddressingMode::IndirectX),
-                0x71 => self.adc(&AddressingMode::IndirectY),
-
-                //AND
-                0x29 => self.and(&AddressingMode::Immediate),
-                0x25 => self.and(&AddressingMode::ZeroPage),
-                0x35 => self.and(&AddressingMode::ZeroPageIndex(self.ind_x)),
-                0x2D => self.and(&AddressingMode::Absolute),
-                0x3D => self.and(&AddressingMode::AbsoluteIndex(self.ind_x)),
-                0x39 => self.and(&AddressingMode::AbsoluteIndex(self.ind_y)),
-                0x21 => self.and(&AddressingMode::IndirectX),
-                0x31 => self.and(&AddressingMode::IndirectY),
-
-                //Branches
-                0x90 | 0xB0 | 0xF0 | 0x30 | 0xD0 | 0x10 | 0x50 | 0x70 => {self.extra_cycles += self.branch(opcode >> 6, (opcode >> 5) &0x01);},
+                
 
                 _ => ()
             };
@@ -115,7 +209,7 @@ pub mod cpu {
 
         //Returns a tuple where 1st element is data to operate on, 2nd is the writeback address
         fn fetch_instruction_data(&mut self, mode: &AddressingMode) -> (u8, u16) {
-            let data = self.cart.cpu_read(self.prg_cnt);
+            let data: u8 = self.cart.cpu_read(self.prg_cnt);
             self.prg_cnt += 1;
             match mode {
                 AddressingMode::Accumulator => (self.acc, 0),
@@ -124,35 +218,36 @@ pub mod cpu {
                 AddressingMode::Absolute => {
                     let addr = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | data as u16;
                     self.prg_cnt += 1;
-                    (self.cart.cpu_read(addr), addr) 
+                    (self.fetch_from_address(addr), addr) 
                 },
-                AddressingMode::AbsoluteIndex(ind) => {
-                    //Possible oops cycle here
-                    let addr = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | (data + ind) as u16;
+                AddressingMode::AbsoluteIndexX => {
+                    let addr: u16 = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | (data + self.ind_x) as u16;
                     self.prg_cnt += 1;
-                    if (data + ind) as u16 > 255 {
-                        //'oops' cycle
-                    }
-
-                    (self.cart.cpu_read(addr), addr)
+                    //'oops' cycle, but only for read instructions that cross a page
+                    if (data + self.ind_x) as u16 > 255 { self.extra_cycles += 1; }
+                    (self.fetch_from_address(addr), addr)
                 },
-                AddressingMode::ZeroPageIndex(ind) => (self.cpu_ram[(data + ind) as usize], data as u16),
+                AddressingMode::AbsoluteIndexY => {
+                    let addr: u16 = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | (data + self.ind_y) as u16;
+                    self.prg_cnt += 1;
+                    //'oops' cycle, but only for read instructions that cross a page
+                    if (data + self.ind_y) as u16 > 255 { self.extra_cycles += 1; }
+                    (self.fetch_from_address(addr), addr)
+                },
+                AddressingMode::ZeroPageX => (self.cpu_ram[(data + self.ind_x) as usize], data as u16),
+                AddressingMode::ZeroPageY => (self.cpu_ram[(data + self.ind_y) as usize], data as u16),
                 AddressingMode::IndirectX => {
                     let low = self.cart.cpu_read((data + self.ind_x) as u16);
                     let high = self.cart.cpu_read((data + self.ind_x + 1) as u16);
                     let addr = (high as u16) << 8 | low as u16;
-                    (self.cart.cpu_read(addr), addr) 
+                    (self.fetch_from_address(addr), addr) 
                 },
                 AddressingMode::IndirectY => {
-                    //oops cycle here possibly
                     let low = self.cart.cpu_read(data as u16);
                     let high = self.cart.cpu_read((data + 1) as u16);
                     let addr = ((high as u16) << 8 | low as u16) + self.ind_y as u16;
-                    if (low + self.ind_y) as u16 > 255 {
-                        //'oops' cycle\
-                        self.extra_cycles += 1;
-                    }
-                    (self.cart.cpu_read(addr), addr) 
+                    if (low + self.ind_y) as u16 > 255 { self.extra_cycles += 1; }
+                    (self.fetch_from_address(addr), addr) 
                 },
                 _ => (0,0)
             }
@@ -209,7 +304,7 @@ pub mod cpu {
         //Branch instructions can all be handled in one function
         //If flag equals value, take the branch, remember branching is signed
         //Another potential 'oops' cycle here
-        fn branch(&mut self, flag: u8, value: u8) -> u8 {
+        fn branch(&mut self, flag: u8, value: u8) {
             let comp: u8 = match flag {
                 0 => self.stat >> 7,
                 1 => (self.stat & 0x40) >> 6,
@@ -218,19 +313,27 @@ pub mod cpu {
                 _ => 0
             };
 
-            let op: u8 = self.cart.cpu_read(self.prg_cnt);
-            let mut extra: u8 = 0;
+            let op: i8 = self.cart.cpu_read(self.prg_cnt) as i8;
             self.prg_cnt += 1;
 
             if comp == value {
-                if ((self.prg_cnt + op as u16) & 0x0F00) != (self.prg_cnt & 0x0F00) {
-                    extra += 1;
+                
+                if op < 0 {
+                    //negative, sub from pc
+                    if ((self.prg_cnt - op.abs() as u16) & 0x0F00) != (self.prg_cnt & 0x0F00) {
+                        self.extra_cycles += 1;
+                    }
+                    self.prg_cnt -= op.abs() as u16;
+                } else {
+                    //positive, add to pc
+                    if ((self.prg_cnt + op as u16) & 0x0F00) != (self.prg_cnt & 0x0F00) {
+                        self.extra_cycles += 1;
+                    }
+                    self.prg_cnt += op as u16;
                 }
-                self.prg_cnt += op as u16;
-                extra += 1;
+                self.extra_cycles += 1;
 
             }
-            extra
         }
 
 
@@ -512,6 +615,7 @@ pub mod cpu {
         fn store(&mut self, reg: u8, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.writeback(data.1, reg);
+            self.extra_cycles = 0; //STA always has the 'oops' cycle, STX and STY don't have those addressing modes
         }
 
 

@@ -10,6 +10,12 @@ pub mod ppu {
 
     impl Ricoh2c02<'_> {
 
+        pub fn new(c: &Cartridge) -> Ricoh2c02 {
+            Ricoh2c02 { 
+                c: c
+             }
+        }
+
         pub fn reset(&self) {
 
         }
