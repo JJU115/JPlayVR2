@@ -67,6 +67,7 @@ pub mod cpu {
         extra_cycles: u8,
 
         instruction_array: Vec<Instruction>,
+        instruction_cycles: Vec<u8>
     }
 
 
@@ -108,6 +109,25 @@ pub mod cpu {
                 Instruction::SED(AddressingMode::Implied), Instruction::SBC(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::SBC(AddressingMode::AbsoluteIndexX), Instruction::INC(AddressingMode::AbsoluteIndexX), Instruction::NAI,
             ];
 
+            let cycles: Vec<u8> = vec![
+                7, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 4, 4, 6, 6,
+                2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+                6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 4, 4, 6, 6,
+                2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+                6, 6, 2, 8, 3, 3, 5, 5, 3, 2, 2, 2, 3, 4, 6, 6,
+                2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+                6, 6, 2, 8, 3, 3, 5, 5, 4, 2, 2, 2, 5, 4, 6, 6,
+                2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+                2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+                2, 6, 2, 6, 4, 4, 4, 4, 2, 5, 2, 5, 5, 5, 5, 5,
+                2, 6, 2, 6, 3, 3, 3, 3, 2, 2, 2, 2, 4, 4, 4, 4,
+                2, 5, 2, 5, 4, 4, 4, 4, 2, 4, 2, 4, 4, 4, 4, 4,
+                2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+                2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
+                2, 6, 2, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6,
+                2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7
+            ];
+
             Mos6502 { 
                 cart: cart, 
                 acc: 0, 
@@ -118,7 +138,8 @@ pub mod cpu {
                 prg_cnt: 0xFFFC, 
                 cpu_ram: vec![0; 2048], 
                 extra_cycles: 0, 
-                instruction_array: instructions
+                instruction_array: instructions,
+                instruction_cycles: cycles
             }
         }
 
@@ -178,11 +199,11 @@ pub mod cpu {
                 Instruction::ADC(mode) => self.adc(&mode),
                 Instruction::AND(mode) => self.and(&mode),
                 Instruction::ASL(mode) => self.asl(&mode),
-                Instruction::BCC(mode) | Instruction::BCS(mode) | 
-                Instruction::BVC(mode) | Instruction::BVS(mode) | 
-                Instruction::BMI(mode) | Instruction::BNE(mode) |
-                Instruction::BPL(mode) | 
-                Instruction::BEQ(mode) => self.branch(opcode >> 6, (opcode >> 5) & 1),
+                Instruction::BCC(_mode) | Instruction::BCS(_mode) | 
+                Instruction::BVC(_mode) | Instruction::BVS(_mode) | 
+                Instruction::BMI(_mode) | Instruction::BNE(_mode) |
+                Instruction::BPL(_mode) | 
+                Instruction::BEQ(_mode) => self.branch(opcode >> 6, (opcode >> 5) & 1),
                 Instruction::BIT(mode) => self.bit(&mode),       
                 Instruction::BRK(_mode) => self.brk(),
                 Instruction::CLC(_mode) => self.clear(0xFE),
@@ -193,12 +214,12 @@ pub mod cpu {
                 Instruction::CPX(mode) => self.cpx(&mode),
                 Instruction::CPY(mode) => self.cpy(&mode),
                 Instruction::DEC(mode) => self.dec(&mode),
-                Instruction::DEX(mode) => self.dex(&mode),
-                Instruction::DEY(mode) => self.dey(&mode),
+                Instruction::DEX(_mode) => self.dex(),
+                Instruction::DEY(_mode) => self.dey(),
                 Instruction::EOR(mode) => self.eor(&mode),
                 Instruction::INC(mode) => self.inc(&mode),
-                Instruction::INX(mode) => self.inx(&mode),
-                Instruction::INY(mode) => self.iny(&mode),
+                Instruction::INX(_mode) => self.inx(),
+                Instruction::INY(_mode) => self.iny(),
                 Instruction::JMP(mode) => self.jmp(&mode),
                 Instruction::JSR(_mode) => self.jsr(),
                 Instruction::LDA(mode) => self.lda(&mode),
@@ -209,8 +230,8 @@ pub mod cpu {
                 Instruction::ORA(mode) => self.ora(&mode),
                 Instruction::PHA(_mode) => self.push(self.acc),
                 Instruction::PHP(_mode) => self.push(self.stat),
-                Instruction::PLA(mode) => self.pla(&mode),
-                Instruction::PLP(mode) => self.plp(&mode),
+                Instruction::PLA(_mode) => self.pla(),
+                Instruction::PLP(_mode) => self.plp(),
                 Instruction::ROL(mode) => self.rol(&mode),
                 Instruction::ROR(mode) => self.ror(&mode),
                 Instruction::RTI(_mode) => self.rti(),
@@ -228,10 +249,10 @@ pub mod cpu {
                 Instruction::TXA(_mode) => self.txa(),
                 Instruction::TXS(_mode) => self.txs(),
                 Instruction::TYA(_mode) => self.tya(),
-                Instruction::NAI => println!("Unofficial/Unassigned opcode!"),
-                _ => ()
+                Instruction::NAI => println!("Unofficial/Unassigned opcode!")
             };
-            0
+            
+            self.instruction_cycles[opcode as usize] + self.extra_cycles
         }
 
 
@@ -433,13 +454,13 @@ pub mod cpu {
         }
 
         
-        fn dex(&mut self, mode: &AddressingMode) {
+        fn dex(&mut self) {
             self.ind_x -= 1;
             self.examine_status(self.ind_x);
         }
 
 
-        fn dey(&mut self, mode: &AddressingMode) {
+        fn dey(&mut self) {
             self.ind_y -= 1;
             self.examine_status(self.ind_y);
         }
@@ -458,12 +479,12 @@ pub mod cpu {
             self.examine_status(data.0 + 1);
         }
 
-        fn inx(&mut self, mode: &AddressingMode) {
+        fn inx(&mut self) {
             self.ind_x += 1;
             self.examine_status(self.ind_x);
         }
 
-        fn iny(&mut self, mode: &AddressingMode) {
+        fn iny(&mut self) {
             self.ind_y += 1;
             self.examine_status(self.ind_y);
         }
@@ -531,7 +552,7 @@ pub mod cpu {
                 self.writeback(data.1, temp);
             }
             self.stat &= 0xFE;
-            self.stat |= (data.0 & 0x01);
+            self.stat |= data.0 & 0x01;
             self.examine_status(temp);
         }
 
@@ -551,13 +572,13 @@ pub mod cpu {
         }
 
 
-        fn pla(&mut self, mode: &AddressingMode) {
+        fn pla(&mut self) {
             self.stck_pnt += 1;
             self.acc = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];         
             self.examine_status(self.acc);
         }
 
-        fn plp(&mut self, mode: &AddressingMode) {
+        fn plp(&mut self) {
             self.stck_pnt += 1;
             self.stat = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];          
         }
