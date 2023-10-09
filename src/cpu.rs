@@ -176,7 +176,59 @@ pub mod cpu {
 
             match self.instruction_array[opcode as usize] {
                 Instruction::ADC(mode) => self.adc(&mode),
-
+                Instruction::AND(mode) => self.and(&mode),
+                Instruction::ASL(mode) => self.asl(&mode),
+                Instruction::BCC(mode) | Instruction::BCS(mode) | 
+                Instruction::BVC(mode) | Instruction::BVS(mode) | 
+                Instruction::BMI(mode) | Instruction::BNE(mode) |
+                Instruction::BPL(mode) | 
+                Instruction::BEQ(mode) => self.branch(opcode >> 6, (opcode >> 5) & 1),
+                Instruction::BIT(mode) => self.bit(&mode),       
+                Instruction::BRK(_mode) => self.brk(),
+                Instruction::CLC(_mode) => self.clear(0xFE),
+                Instruction::CLD(_mode) => self.clear(0xF7),
+                Instruction::CLI(_mode) => self.clear(0xFB),
+                Instruction::CLV(_mode) => self.clear(0xBF),
+                Instruction::CMP(mode) => self.cmp(&mode),
+                Instruction::CPX(mode) => self.cpx(&mode),
+                Instruction::CPY(mode) => self.cpy(&mode),
+                Instruction::DEC(mode) => self.dec(&mode),
+                Instruction::DEX(mode) => self.dex(&mode),
+                Instruction::DEY(mode) => self.dey(&mode),
+                Instruction::EOR(mode) => self.eor(&mode),
+                Instruction::INC(mode) => self.inc(&mode),
+                Instruction::INX(mode) => self.inx(&mode),
+                Instruction::INY(mode) => self.iny(&mode),
+                Instruction::JMP(mode) => self.jmp(&mode),
+                Instruction::JSR(_mode) => self.jsr(),
+                Instruction::LDA(mode) => self.lda(&mode),
+                Instruction::LDX(mode) => self.ldx(&mode),
+                Instruction::LDY(mode) => self.ldy(&mode),
+                Instruction::LSR(mode) => self.lsr(&mode),
+                Instruction::NOP(_mode) => (),
+                Instruction::ORA(mode) => self.ora(&mode),
+                Instruction::PHA(_mode) => self.push(self.acc),
+                Instruction::PHP(_mode) => self.push(self.stat),
+                Instruction::PLA(mode) => self.pla(&mode),
+                Instruction::PLP(mode) => self.plp(&mode),
+                Instruction::ROL(mode) => self.rol(&mode),
+                Instruction::ROR(mode) => self.ror(&mode),
+                Instruction::RTI(_mode) => self.rti(),
+                Instruction::RTS(_mode) => self.rts(),
+                Instruction::SBC(mode) => self.sbc(&mode),
+                Instruction::SEC(_mode) => self.set(0x01),
+                Instruction::SED(_mode) => self.set(0x08),
+                Instruction::SEI(_mode) => self.set(0x04),
+                Instruction::STA(mode) => self.store(self.acc, &mode),
+                Instruction::STX(mode) => self.store(self.ind_x, &mode),
+                Instruction::STY(mode) => self.store(self.ind_y, &mode),
+                Instruction::TAX(_mode) => self.tax(),
+                Instruction::TAY(_mode) => self.tay(),
+                Instruction::TSX(_mode) => self.tsx(),
+                Instruction::TXA(_mode) => self.txa(),
+                Instruction::TXS(_mode) => self.txs(),
+                Instruction::TYA(_mode) => self.tya(),
+                Instruction::NAI => println!("Unofficial/Unassigned opcode!"),
                 _ => ()
             };
             0
@@ -328,6 +380,7 @@ pub mod cpu {
             7   $FFFF   R  fetch PCH
         */
         fn brk(&mut self) {
+            self.prg_cnt += 1;
             self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
             self.cpu_ram[(0x0100 + (self.stck_pnt - 1) as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
             self.stck_pnt -= 2;
@@ -355,7 +408,7 @@ pub mod cpu {
         }
 
         
-        fn cpx(&mut self, mode: &AddressingMode, reg: u8) {
+        fn cpx(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.stat &= 0x7C;
             if self.ind_x >= data.0 { self.stat |= 0x01; }
@@ -364,7 +417,7 @@ pub mod cpu {
         }
 
 
-        fn cpy(&mut self, mode: &AddressingMode, reg: u8) {
+        fn cpy(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.stat &= 0x7C;
             if self.ind_y >= data.0 { self.stat |= 0x01; }
@@ -482,12 +535,6 @@ pub mod cpu {
             self.examine_status(temp);
         }
 
-
-        //Does nothing!
-        fn nop() {
-
-        }
-
         
         fn ora(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
@@ -529,7 +576,7 @@ pub mod cpu {
             self.examine_status(temp);
         }
 
-        fn ror(&mut self, mode: &AddressingMode, reg: u8) {
+        fn ror(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             let temp = data.0 >> 1;
             if let AddressingMode::Accumulator = mode {
@@ -538,7 +585,7 @@ pub mod cpu {
                 self.writeback(data.1, temp);
             }
             self.stat &= 0xFE;
-            self.stat |= (data.0 & 0x01);
+            self.stat |= data.0 & 0x01;
             self.examine_status(temp);
         }
 
@@ -586,6 +633,10 @@ pub mod cpu {
             self.examine_status(self.acc);
         }
 
+        //OR the mask with the status register
+        fn set(&mut self, mask: u8) {
+            self.stat |= mask;
+        }
 
         //STA, STX, STY as one function
         fn store(&mut self, reg: u8, mode: &AddressingMode) {
