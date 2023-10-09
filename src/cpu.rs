@@ -30,6 +30,9 @@ pub mod cpu {
         IndirectY
     }
 
+    /*
+        All MOS6502 instructions minus 'unofficial' opcodes, which have been replaced with NAI = Not An Instruction
+     */
     enum Instruction {
         ADC(AddressingMode),AND(AddressingMode),ASL(AddressingMode),BCC(AddressingMode),BCS(AddressingMode),
         BEQ(AddressingMode),BIT(AddressingMode),BMI(AddressingMode),BNE(AddressingMode),BPL(AddressingMode),
@@ -71,67 +74,38 @@ pub mod cpu {
 
         pub fn new(cart: &cartridge::Cartridge) -> Mos6502 {
             let instructions: Vec<Instruction> = vec![
-                Instruction::BRK(AddressingMode::Implied),  Instruction::ORA(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage),
-                Instruction::ORA(AddressingMode::ZeroPage), Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PHP(AddressingMode::Implied), Instruction::ORA(AddressingMode::Immediate),
-                Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::NOP(AddressingMode::Absolute), Instruction::ORA(AddressingMode::Absolute), Instruction::ASL(AddressingMode::Absolute),
-                Instruction::NAI,                           Instruction::BPL(AddressingMode::Relative), Instruction::ORA(AddressingMode::IndirectY), Instruction::NAI,Instruction::NAI, Instruction::NOP(AddressingMode::Absolute),
-                Instruction::ORA(AddressingMode::Immediate),Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::CLC(AddressingMode::Implied), Instruction::ORA(AddressingMode::AbsoluteIndexY),
-                Instruction::NOP(AddressingMode::Implied),  Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::ORA(AddressingMode::AbsoluteIndexX), Instruction::ASL(AddressingMode::AbsoluteIndexX), Instruction::NAI,
-
-                Instruction::JSR(AddressingMode::Implied), Instruction::AND(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI,Instruction::BIT(AddressingMode::ZeroPage),
-                Instruction::AND(AddressingMode::ZeroPage), Instruction::ROL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PLP(AddressingMode::Implied), Instruction::AND(AddressingMode::Immediate),
-                Instruction::ROL(AddressingMode::Accumulator), Instruction::NAI, Instruction::BIT(AddressingMode::Absolute), Instruction::AND(AddressingMode::Absolute), Instruction::ROL(AddressingMode::Absolute),
-                Instruction::NAI, Instruction::BMI(AddressingMode::Relative), Instruction::AND(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::NOP(AddressingMode::Absolute), Instruction::AND(AddressingMode::Immediate), Instruction::ROL(AddressingMode::ZeroPage), Instruction::NAI, Instruction::SEC(AddressingMode::Implied), 
-                Instruction::AND(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::AND(AddressingMode::AbsoluteIndexX),
-                Instruction::ROL(AddressingMode::AbsoluteIndexX), Instruction::NAI,
-
-                Instruction::RTI(AddressingMode::Implied), Instruction::EOR(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage),
-                Instruction::EOR(AddressingMode::ZeroPage), Instruction::LSR(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PHA(AddressingMode::Implied), Instruction::EOR(AddressingMode::Immediate),
-                Instruction::LSR(AddressingMode::Accumulator), Instruction::NAI, Instruction::JMP(AddressingMode::Absolute), Instruction::EOR(AddressingMode::Absolute), Instruction::LSR(AddressingMode::Absolute),
-                Instruction::NAI, Instruction::BVC(AddressingMode::Relative), Instruction::EOR(AddressingMode::IndirectY), Instruction::NAI,Instruction::NAI, Instruction::NOP(AddressingMode::Absolute),
-                Instruction::EOR(AddressingMode::ZeroPageX), Instruction::LSR(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::CLI(AddressingMode::Implied), Instruction::EOR(AddressingMode::AbsoluteIndexY),
-                Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::EOR(AddressingMode::AbsoluteIndexX), Instruction::LSR(AddressingMode::AbsoluteIndexX), Instruction::NAI,
-
-                Instruction::RTS(AddressingMode::Implied), Instruction::ADC(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI,Instruction::NOP(AddressingMode::ZeroPage),
-                Instruction::ADC(AddressingMode::ZeroPage), Instruction::ROR(AddressingMode::ZeroPage), Instruction::NAI, Instruction::PLA(AddressingMode::Implied), Instruction::ADC(AddressingMode::Immediate),
-                Instruction::ROR(AddressingMode::Accumulator), Instruction::NAI, Instruction::JMP(AddressingMode::Indirect), Instruction::ADC(AddressingMode::Absolute), Instruction::ROR(AddressingMode::Absolute),
-                Instruction::NAI, Instruction::BVS(AddressingMode::Relative), Instruction::ADC(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::NOP(AddressingMode::ZeroPageX), Instruction::ADC(AddressingMode::Immediate), Instruction::ROR(AddressingMode::ZeroPage), Instruction::NAI, Instruction::SEI(AddressingMode::Implied), 
-                Instruction::ADC(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::ADC(AddressingMode::AbsoluteIndexX),
-                Instruction::ROR(AddressingMode::AbsoluteIndexX), Instruction::NAI,
-
-                Instruction::NOP(AddressingMode::Implied), Instruction::STA(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI,Instruction::STY(AddressingMode::ZeroPage),
-                Instruction::STA(AddressingMode::ZeroPage), Instruction::STX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::DEY(AddressingMode::Implied), Instruction::NOP(AddressingMode::Immediate),
-                Instruction::TXA(AddressingMode::Accumulator), Instruction::NAI, Instruction::STY(AddressingMode::Absolute), Instruction::STA(AddressingMode::Absolute), Instruction::STX(AddressingMode::Absolute),
-                Instruction::NAI, Instruction::BCC(AddressingMode::Relative), Instruction::STA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::STY(AddressingMode::ZeroPageX), Instruction::STA(AddressingMode::Immediate), Instruction::STX(AddressingMode::ZeroPageY), Instruction::NAI, Instruction::TYA(AddressingMode::Implied), 
-                Instruction::STA(AddressingMode::AbsoluteIndexY), Instruction::TXS(AddressingMode::Implied), Instruction::NAI, Instruction::NAI, Instruction::STA(AddressingMode::AbsoluteIndexX),
-                Instruction::NAI, Instruction::NAI,
-
-                Instruction::LDY(AddressingMode::Immediate), Instruction::LDA(AddressingMode::IndirectX), Instruction::LDX(AddressingMode::Immediate), Instruction::NAI,Instruction::LDY(AddressingMode::ZeroPage),
-                Instruction::LDA(AddressingMode::ZeroPage), Instruction::LDX(AddressingMode::ZeroPage), Instruction::NAI, Instruction::TAY(AddressingMode::Implied), Instruction::LDA(AddressingMode::Immediate),
-                Instruction::TAX(AddressingMode::Accumulator), Instruction::NAI, Instruction::LDY(AddressingMode::Absolute), Instruction::LDA(AddressingMode::Absolute), Instruction::LDX(AddressingMode::Absolute),
-                Instruction::NAI, Instruction::BCS(AddressingMode::Relative), Instruction::LDA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::LDY(AddressingMode::ZeroPageX), Instruction::LDA(AddressingMode::Immediate), Instruction::LDX(AddressingMode::ZeroPageY), Instruction::NAI, Instruction::CLV(AddressingMode::Implied), 
-                Instruction::LDA(AddressingMode::AbsoluteIndexY), Instruction::TSX(AddressingMode::Implied), Instruction::NAI, Instruction::LDY(AddressingMode::AbsoluteIndexX), Instruction::LDA(AddressingMode::AbsoluteIndexX),
-                Instruction::LDX(AddressingMode::AbsoluteIndexY), Instruction::NAI,
-
-                Instruction::CPY(AddressingMode::Immediate), Instruction::CMP(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI,Instruction::CPY(AddressingMode::ZeroPage),
-                Instruction::CMP(AddressingMode::ZeroPage), Instruction::DEC(AddressingMode::ZeroPage), Instruction::NAI, Instruction::INY(AddressingMode::Implied), Instruction::CMP(AddressingMode::Immediate),
-                Instruction::DEX(AddressingMode::Implied), Instruction::NAI, Instruction::CPY(AddressingMode::Absolute), Instruction::CMP(AddressingMode::Absolute), Instruction::DEC(AddressingMode::Absolute),
-                Instruction::NAI, Instruction::BNE(AddressingMode::Relative), Instruction::CMP(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::NOP(AddressingMode::ZeroPageX), Instruction::CMP(AddressingMode::ZeroPageX), Instruction::DEC(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::CLD(AddressingMode::Implied), 
-                Instruction::CMP(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::CMP(AddressingMode::AbsoluteIndexX),
-                Instruction::DEC(AddressingMode::AbsoluteIndexX), Instruction::NAI,
-
-                Instruction::CPX(AddressingMode::Immediate), Instruction::SBC(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI,Instruction::CPX(AddressingMode::ZeroPage),
-                Instruction::SBC(AddressingMode::ZeroPage), Instruction::INC(AddressingMode::ZeroPage), Instruction::NAI, Instruction::INX(AddressingMode::Implied), Instruction::SBC(AddressingMode::Immediate),
-                Instruction::DEX(AddressingMode::Implied), Instruction::NAI, Instruction::CPX(AddressingMode::Absolute), Instruction::SBC(AddressingMode::Absolute), Instruction::INC(AddressingMode::Absolute),
-                Instruction::NAI, Instruction::BEQ(AddressingMode::Relative), Instruction::SBC(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI,
-                Instruction::NOP(AddressingMode::ZeroPageX), Instruction::SBC(AddressingMode::ZeroPageX), Instruction::INC(AddressingMode::ZeroPageX), Instruction::NAI, Instruction::SED(AddressingMode::Implied), 
-                Instruction::SBC(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::SBC(AddressingMode::AbsoluteIndexX),
-                Instruction::INC(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+                Instruction::BRK(AddressingMode::Immediate), Instruction::ORA(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage), Instruction::ORA(AddressingMode::ZeroPage), Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, 
+                Instruction::PHP(AddressingMode::Implied), Instruction::ORA(AddressingMode::Immediate), Instruction::ASL(AddressingMode::Accumulator), Instruction::NAI, Instruction::NOP(AddressingMode::Absolute), Instruction::ORA(AddressingMode::Absolute), Instruction::ASL(AddressingMode::Absolute), Instruction::NAI, 
+                Instruction::BPL(AddressingMode::Relative), Instruction::ORA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPageX), Instruction::ORA(AddressingMode::ZeroPageX), Instruction::ASL(AddressingMode::ZeroPageX), Instruction::NAI, 
+                Instruction::CLC(AddressingMode::Implied), Instruction::ORA(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::ORA(AddressingMode::AbsoluteIndexX), Instruction::ASL(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+                Instruction::JSR(AddressingMode::Immediate), Instruction::AND(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::BIT(AddressingMode::ZeroPage), Instruction::AND(AddressingMode::ZeroPage), Instruction::ROL(AddressingMode::ZeroPage), Instruction::NAI, 
+                Instruction::PLP(AddressingMode::Implied), Instruction::AND(AddressingMode::Immediate), Instruction::ROL(AddressingMode::Accumulator), Instruction::NAI, Instruction::BIT(AddressingMode::Absolute), Instruction::AND(AddressingMode::Absolute), Instruction::ROL(AddressingMode::Absolute), Instruction::NAI,
+                Instruction::BMI(AddressingMode::Relative), Instruction::AND(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPageX), Instruction::AND(AddressingMode::ZeroPageX), Instruction::ROL(AddressingMode::ZeroPageX), Instruction::NAI,
+                Instruction::SEC(AddressingMode::Implied), Instruction::AND(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::AND(AddressingMode::AbsoluteIndexX), Instruction::ROL(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+                Instruction::RTI(AddressingMode::Immediate), Instruction::EOR(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage), Instruction::EOR(AddressingMode::ZeroPage), Instruction::LSR(AddressingMode::ZeroPage), Instruction::NAI,
+                Instruction::PHA(AddressingMode::Implied), Instruction::EOR(AddressingMode::Immediate), Instruction::LSR(AddressingMode::Accumulator), Instruction::NAI, Instruction::JMP(AddressingMode::Absolute), Instruction::EOR(AddressingMode::Absolute), Instruction::LSR(AddressingMode::Absolute), Instruction::NAI, 
+                Instruction::BVC(AddressingMode::Relative), Instruction::EOR(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPageX), Instruction::EOR(AddressingMode::ZeroPageX), Instruction::LSR(AddressingMode::ZeroPageX), Instruction::NAI, 
+                Instruction::CLI(AddressingMode::Implied), Instruction::EOR(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::EOR(AddressingMode::AbsoluteIndexX), Instruction::LSR(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+                Instruction::RTS(AddressingMode::Immediate), Instruction::ADC(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage), Instruction::ADC(AddressingMode::ZeroPage), Instruction::ROR(AddressingMode::ZeroPage), Instruction::NAI, 
+                Instruction::PLA(AddressingMode::Implied), Instruction::ADC(AddressingMode::Immediate), Instruction::ROR(AddressingMode::Accumulator), Instruction::NAI, Instruction::JMP(AddressingMode::Indirect), Instruction::ADC(AddressingMode::Absolute), Instruction::ROR(AddressingMode::Absolute), Instruction::NAI, 
+                Instruction::BVS(AddressingMode::Relative), Instruction::ADC(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPageX), Instruction::ADC(AddressingMode::ZeroPageX), Instruction::ROR(AddressingMode::ZeroPageX), Instruction::NAI, 
+                Instruction::SEI(AddressingMode::Implied), Instruction::ADC(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::ADC(AddressingMode::AbsoluteIndexX), Instruction::ROR(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+                Instruction::NOP(AddressingMode::Immediate), Instruction::STA(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI, Instruction::STY(AddressingMode::ZeroPage), Instruction::STA(AddressingMode::ZeroPage), Instruction::STX(AddressingMode::ZeroPage), Instruction::NAI, 
+                Instruction::DEY(AddressingMode::Implied), Instruction::NOP(AddressingMode::Immediate), Instruction::TXA(AddressingMode::Implied), Instruction::NAI, Instruction::STY(AddressingMode::Absolute), Instruction::STA(AddressingMode::Absolute), Instruction::STX(AddressingMode::Absolute), Instruction::NAI, 
+                Instruction::BCC(AddressingMode::Relative), Instruction::STA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::STY(AddressingMode::ZeroPageX), Instruction::STA(AddressingMode::ZeroPageX), Instruction::STX(AddressingMode::ZeroPageY), Instruction::NAI, 
+                Instruction::TYA(AddressingMode::Implied), Instruction::STA(AddressingMode::AbsoluteIndexY), Instruction::TXS(AddressingMode::Implied), Instruction::NAI, Instruction::NAI, Instruction::STA(AddressingMode::AbsoluteIndexX), Instruction::NAI, Instruction::NAI,
+                Instruction::LDY(AddressingMode::Immediate), Instruction::LDA(AddressingMode::IndirectX), Instruction::LDX(AddressingMode::Immediate), Instruction::NAI, Instruction::LDY(AddressingMode::ZeroPage), Instruction::LDA(AddressingMode::ZeroPage), Instruction::LDX(AddressingMode::ZeroPage), Instruction::NAI, 
+                Instruction::TAY(AddressingMode::Implied), Instruction::LDA(AddressingMode::Immediate), Instruction::TAX(AddressingMode::Implied), Instruction::NAI, Instruction::LDY(AddressingMode::Absolute), Instruction::LDA(AddressingMode::Absolute), Instruction::LDX(AddressingMode::Absolute), Instruction::NAI, 
+                Instruction::BCS(AddressingMode::Relative), Instruction::LDA(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::LDY(AddressingMode::ZeroPageX), Instruction::LDA(AddressingMode::ZeroPageX), Instruction::LDX(AddressingMode::ZeroPageY), Instruction::NAI, 
+                Instruction::CLV(AddressingMode::Implied), Instruction::LDA(AddressingMode::AbsoluteIndexY), Instruction::TSX(AddressingMode::Implied), Instruction::NAI, Instruction::LDY(AddressingMode::AbsoluteIndexX), Instruction::LDA(AddressingMode::AbsoluteIndexX), Instruction::LDX(AddressingMode::AbsoluteIndexY), Instruction::NAI,
+                Instruction::CPY(AddressingMode::Immediate), Instruction::CMP(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI, Instruction::CPY(AddressingMode::ZeroPage), Instruction::CMP(AddressingMode::ZeroPage), Instruction::DEC(AddressingMode::ZeroPage), Instruction::NAI, 
+                Instruction::INY(AddressingMode::Implied), Instruction::CMP(AddressingMode::Immediate), Instruction::DEX(AddressingMode::Implied), Instruction::NAI, Instruction::CPY(AddressingMode::Absolute), Instruction::CMP(AddressingMode::Absolute), Instruction::DEC(AddressingMode::Absolute), Instruction::NAI, 
+                Instruction::BNE(AddressingMode::Relative), Instruction::CMP(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPageX), Instruction::CMP(AddressingMode::ZeroPageX), Instruction::DEC(AddressingMode::ZeroPageX), Instruction::NAI, 
+                Instruction::CLD(AddressingMode::Implied), Instruction::CMP(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::CMP(AddressingMode::AbsoluteIndexX), Instruction::DEC(AddressingMode::AbsoluteIndexX), Instruction::NAI,
+                Instruction::CPX(AddressingMode::Immediate), Instruction::SBC(AddressingMode::IndirectX), Instruction::NOP(AddressingMode::Immediate), Instruction::NAI, Instruction::CPX(AddressingMode::ZeroPage), Instruction::SBC(AddressingMode::ZeroPage), Instruction::INC(AddressingMode::ZeroPage), Instruction::NAI, 
+                Instruction::INX(AddressingMode::Implied), Instruction::SBC(AddressingMode::Immediate), Instruction::NOP(AddressingMode::Implied), Instruction::SBC(AddressingMode::Immediate), Instruction::CPX(AddressingMode::Absolute), Instruction::SBC(AddressingMode::Absolute), Instruction::INC(AddressingMode::Absolute), Instruction::NAI, 
+                Instruction::BEQ(AddressingMode::Relative), Instruction::SBC(AddressingMode::IndirectY), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPageX), Instruction::SBC(AddressingMode::ZeroPageX), Instruction::INC(AddressingMode::ZeroPageX), Instruction::NAI, 
+                Instruction::SED(AddressingMode::Implied), Instruction::SBC(AddressingMode::AbsoluteIndexY), Instruction::NOP(AddressingMode::Implied), Instruction::NAI, Instruction::NOP(AddressingMode::AbsoluteIndexX), Instruction::SBC(AddressingMode::AbsoluteIndexX), Instruction::INC(AddressingMode::AbsoluteIndexX), Instruction::NAI,
             ];
 
             Mos6502 { 
