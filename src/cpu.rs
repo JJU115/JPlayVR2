@@ -12,6 +12,7 @@
 pub mod cpu {
 
     use crate::cartridge::cartridge;
+    use crate::ppu::ppu::Ricoh2c02;
 
     #[derive(Debug, Copy, Clone)]
     enum AddressingMode {
@@ -51,6 +52,7 @@ pub mod cpu {
 
     pub struct Mos6502<'a> {
         pub cart: &'a cartridge::Cartridge,
+        pub ppu: &'a Ricoh2c02<'a>,
 
         //Registers
         acc: u8,
@@ -73,7 +75,7 @@ pub mod cpu {
 
     impl Mos6502<'_> {
 
-        pub fn new(cart: &cartridge::Cartridge) -> Mos6502 {
+        pub fn new<'a>(cart: &'a cartridge::Cartridge, ppu: &'a Ricoh2c02<'a>) -> Mos6502<'a> {
             let instructions: Vec<Instruction> = vec![
                 Instruction::BRK(AddressingMode::Immediate), Instruction::ORA(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage), Instruction::ORA(AddressingMode::ZeroPage), Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, 
                 Instruction::PHP(AddressingMode::Implied), Instruction::ORA(AddressingMode::Immediate), Instruction::ASL(AddressingMode::Accumulator), Instruction::NAI, Instruction::NOP(AddressingMode::Absolute), Instruction::ORA(AddressingMode::Absolute), Instruction::ASL(AddressingMode::Absolute), Instruction::NAI, 
@@ -130,6 +132,7 @@ pub mod cpu {
 
             Mos6502 { 
                 cart: cart, 
+                ppu: ppu,
                 acc: 0, 
                 ind_x: 0, 
                 ind_y: 0, 
@@ -410,7 +413,7 @@ pub mod cpu {
             self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = self.stat | 0x30;
             self.stck_pnt -= 1;
 
-            self.prg_cnt = self.cart.cpu_read(0xFFFE) as u16 | (self.cart.cpu_read(0xFFFF) << 8) as u16;
+            self.prg_cnt = self.cart.cpu_read(0xFFFE) as u16 | (self.cart.cpu_read(0xFFFF) as u16) << 8;
             self.stat |= 0x04;
         }
 
@@ -493,12 +496,12 @@ pub mod cpu {
         //JMP Instruction - Absolute or indirect addressing modes
         fn jmp(&mut self, mode: &AddressingMode) {
             if let AddressingMode::Absolute = mode {
-                self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) << 8) as u16 | self.cart.cpu_read(self.prg_cnt) as u16;
+                self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | self.cart.cpu_read(self.prg_cnt) as u16;
             } else {
-                let target = (self.cart.cpu_read(self.prg_cnt + 1) << 8) as u16 | 
+                let target = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | 
                     self.cart.cpu_read(self.prg_cnt) as u16;
                 
-                self.prg_cnt = (self.cart.cpu_read(target + 1) << 8) as u16 | self.cart.cpu_read(target) as u16;
+                self.prg_cnt = (self.cart.cpu_read(target + 1) as u16) << 8 | self.cart.cpu_read(target) as u16;
             }
         }
 
@@ -518,7 +521,7 @@ pub mod cpu {
             self.cpu_ram[(0x0100 + (self.stck_pnt - 1) as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
             self.stck_pnt -= 2;
 
-            self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) << 8) as u16 | self.cart.cpu_read(self.prg_cnt) as u16;
+            self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | self.cart.cpu_read(self.prg_cnt) as u16;
         }
 
 
@@ -623,7 +626,7 @@ pub mod cpu {
         fn rti(&mut self) {
             self.stck_pnt += 1;
             self.stat = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];
-            self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt as u16) as usize] << 8) as u16;
+            self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt as u16) as usize] as u16) << 8;
             self.stck_pnt += 2;
         }
 
@@ -639,7 +642,7 @@ pub mod cpu {
         */
         fn rts(&mut self) {
             self.stck_pnt += 1;
-            self.prg_cnt = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] << 8) as u16;
+            self.prg_cnt = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16) << 8;
             self.stck_pnt += 1;
             self.prg_cnt += 1;
         }

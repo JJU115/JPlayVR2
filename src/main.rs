@@ -1,5 +1,3 @@
-use std::vec;
-
 pub mod cpu;
 pub mod ppu;
 pub mod cartridge;
@@ -13,14 +11,15 @@ fn main() {
 
 
     let p = ppu::ppu::Ricoh2c02::new(&cart);
-    let mut cp = cpu::cpu::Mos6502::new(&cart);
+    let mut cp = cpu::cpu::Mos6502::new(&cart, &p);
 
-    let nes  = console::console::Console {
+    let mut nes  = console::console::Console {
         cartridge: &cart,
         cpu: &mut cp,
-        ppu: &p
     };
 
-
+    nes.load_cartridge();
+    
+    nes.start_console();
     
 }

@@ -1,22 +1,20 @@
 pub mod console {
     use crate::cpu::cpu::Mos6502;
-    use crate::ppu::ppu::Ricoh2c02;
     use crate::cartridge::cartridge::Cartridge;
 
     pub struct Console<'a> {
         pub cartridge: &'a Cartridge,
-        pub cpu: &'a mut Mos6502<'a>,
-        pub ppu: &'a Ricoh2c02<'a>,
+        pub cpu: &'a mut Mos6502<'a>
     }
 
 
     impl Console<'_> {
-        fn load_cartridge(&self) {
-
+        pub fn load_cartridge(&self, ) -> Result<String, &str> {
+            Err("Not implemented")
         }
 
 
-        fn start_console(&mut self) {
+        pub fn start_console(&mut self) {
             //Perform a reset on the cpu and ppu
             self.cpu.reset();
 

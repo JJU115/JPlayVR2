@@ -3,7 +3,7 @@ pub mod ppu {
 
 
     pub struct Ricoh2c02<'a> {
-        pub c: &'a Cartridge,
+        pub cart: &'a Cartridge,
     }
 
 
@@ -12,7 +12,7 @@ pub mod ppu {
 
         pub fn new(c: &Cartridge) -> Ricoh2c02 {
             Ricoh2c02 { 
-                c: c
+                cart: c
              }
         }
 
