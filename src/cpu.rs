@@ -666,7 +666,6 @@ pub mod cpu {
         fn store(&mut self, reg: u8, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
             self.writeback(data.1, reg);
-            self.extra_cycles = 0; //STA always has the 'oops' cycle, STX and STY don't have those addressing modes
         }
 
 
