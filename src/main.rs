@@ -3,10 +3,22 @@ pub mod ppu;
 pub mod cartridge;
 pub mod console;
 
+use std::env;
+
 fn main() {
+
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() != 2 {
+        println!("Single argument required");
+        std::process::exit(0);
+    } 
+  
+
     let cart = cartridge::cartridge::Cartridge {
         prg_rom: vec![],
-        chr_rom: vec![]
+        chr_rom: vec![],
+        mapper_num: 0
     };
 
 
@@ -18,7 +30,10 @@ fn main() {
         cpu: &mut cp,
     };
 
-    nes.load_cartridge();
+     if let Err(msg) = nes.load_cartridge(&args[1]) {
+        println!("{}", msg);
+        std::process::exit(-1);
+     }
     
     nes.start_console();
     

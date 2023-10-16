@@ -1,6 +1,7 @@
 pub mod cartridge {
 
     pub struct Cartridge {
+        pub mapper_num: u8,
         pub prg_rom: Vec<u8>,
         pub chr_rom: Vec<u8>,
     }
