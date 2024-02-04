@@ -2,6 +2,7 @@ pub mod cpu;
 pub mod ppu;
 pub mod cartridge;
 pub mod console;
+pub mod nrom;
 
 use std::env;
 
@@ -15,25 +16,18 @@ fn main() {
     } 
   
 
-    let cart = cartridge::cartridge::Cartridge {
-        prg_rom: vec![],
-        chr_rom: vec![],
-        mapper_num: 0
+    let cart = match cartridge::cartridge::Cartridge::load_rom(&args[1]) {
+        Ok(cart) => cart,
+        Err(msg) => {
+            println!("{}", msg);
+            std::process::exit(-1);
+        }
     };
-
 
     let p = ppu::ppu::Ricoh2c02::new(&cart);
-    let mut cp = cpu::cpu::Mos6502::new(&cart, &p);
-
     let mut nes  = console::console::Console {
-        cartridge: &cart,
-        cpu: &mut cp,
+        cpu: &mut cpu::cpu::Mos6502::new(&cart, &p),
     };
-
-     if let Err(msg) = nes.load_cartridge(&args[1]) {
-        println!("{}", msg);
-        std::process::exit(-1);
-     }
     
     nes.start_console();
     
