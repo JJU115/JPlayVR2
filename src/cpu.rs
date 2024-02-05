@@ -332,8 +332,7 @@ pub mod cpu {
 
         fn asl(&mut self, mode: &AddressingMode) {
             let mut data = self.fetch_instruction_data(mode);
-            self.stat &= 0xFE;
-            self.stat |= (data.0 & 0x80) >> 7;
+            self.stat = (self.stat & 0xFE) | ((data.0 & 0x80) >> 7);
             data.0 = data.0 << 1;
             if let AddressingMode::Accumulator = mode {
                 self.acc = data.0;
@@ -346,8 +345,7 @@ pub mod cpu {
 
         fn bit(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
-            self.stat &= 0x3D;
-            self.stat |= data.0 & 0xC0;
+            self.stat = (self.stat & 0x3D) | (data.0 & 0xC0); 
             if self.acc & data.0 == 0 {
                 self.stat |= 0x02;
             }

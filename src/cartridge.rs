@@ -4,9 +4,9 @@ pub mod cartridge {
     use crate::nrom::nrom::Nrom;
 
     pub trait Mapper {
-        fn ppu_read(&self);
-        fn cpu_read(&self);
-        fn cpu_write(&self);
+        fn ppu_read(&self) -> usize;
+        fn cpu_read(&self, addr: u16) -> usize;
+        fn cpu_write(&self, addr: u16, value: u8);
         fn ppu_write(&self);
     }
 
@@ -32,7 +32,10 @@ pub mod cartridge {
             }
 
             let mut cart = Cartridge {
-                mapper: Box::new(Nrom::new()),
+                mapper: match (ines_header[6] & 0xF0) >> 4 | ines_header[7] & 0xF0 {
+                    0 => Box::new(Nrom::new(ines_header[4] == 1)),
+                    _ => Box::new(Nrom::new(ines_header[4] == 1))
+                },
                 prg_rom: vec![0],
                 chr_rom: vec![0]
             };
@@ -43,9 +46,6 @@ pub mod cartridge {
 
             //Start of the PRG data, taking the trainer into account if present
             let cpu_start: u64 = 16 + if ines_header[6] & 0x04 != 0 {512} else {0}; 
-
-            //Usage of byte 7 only needed for mapper 66
-            //loaded_rom.mapper_num = (ines_header[6] & 0xF0) >> 4 | ines_header[7] & 0xF0;
 
             file.seek(SeekFrom::Start(cpu_start)).map_err(|_| String::from("Seek to PRG failed"))?;
             file.read_exact(&mut cart.prg_rom).map_err(|_| String::from("Read PRG failed"))?;
@@ -60,7 +60,12 @@ pub mod cartridge {
             from cpu to get those two bytes rather than having two separate calls to cpu_read
         */
         pub fn cpu_read(&self, addr: u16) -> u8 {
-            0
+            if addr > 0x7FFF {
+                self.prg_rom[self.mapper.cpu_read(addr)]
+            } else {
+                0
+            }
+            
         }
 
         pub fn cpu_write(&self, addr: u16, value: u8) {
