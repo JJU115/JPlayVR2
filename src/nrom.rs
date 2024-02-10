@@ -6,18 +6,12 @@ pub mod nrom {
     }
 
     impl Mapper for Nrom {
-        fn ppu_read(&self) -> usize {
-            0
-        }
+        fn ppu_read(&self) -> usize {0}
         fn cpu_read(&self, addr: u16) -> usize {
             ((addr & self.prg_bank_mirror) - 0x8000) as usize
         }
-        fn cpu_write(&self, addr: u16, value: u8) {
-
-        }
-        fn ppu_write(&self) {
-
-        }
+        fn cpu_write(&self, addr: u16, value: u8) {}
+        fn ppu_write(&self) {}
     }
 
     impl Nrom {

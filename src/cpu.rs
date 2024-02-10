@@ -159,11 +159,11 @@ pub mod cpu {
                 //$0000–$1FFF Internal ram, mirrors every $0800 addresses
                 0x0000..=0x1FFF => self.cpu_ram[(addr & 0x07FF) as usize],
 
-                //$2000–$2007 PPU registers, $2008–$3FFF mirrors $2000–$2007
-                0x2000..=0x2007 => 0,
-
-                //$4000–$4015 NES APU registers, anything other than $4015 produces open bus behavior
-                0x4015 => 0,
+                //$2000–$2007 PPU registers, $2008–$3FFF mirrors $2000–$2007 every 8 bytes
+                0x2000..=0x3FFF => 0,
+              
+                //$4000–$4017 NES APU registers, anything other than $4015 produces open bus behavior
+                0x4000..=0x4013 => 0,
 
                 //$4020–$FFFF Cartridge space: PRG ROM, PRG RAM, and mapper registers 
                 0x4020..=0xFFFF => self.cart.cpu_read(addr),
@@ -181,9 +181,12 @@ pub mod cpu {
                 0x2000..=0x3FFF => {
                     //PPU registers
                 },
-                0x4000..=0x4017 => {
-                    //APU registers
-                }
+                0x4000..=0x4013 | 0x4015..=0x4017 => {
+                    //APU Registers
+                },
+                0x4014 => {
+                    //OAM DMA
+                },              
                 0x4020..=0xFFFF => {
                     self.cart.cpu_write(addr, value);
                 },

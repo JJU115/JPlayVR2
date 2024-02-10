@@ -55,25 +55,21 @@ pub mod cartridge {
             Result::Ok(cart)
         }
 
-        /*
-            Since all instructions require fetching two bytes, can just call this function once 
-            from cpu to get those two bytes rather than having two separate calls to cpu_read
-        */
         pub fn cpu_read(&self, addr: u16) -> u8 {
-            if addr > 0x7FFF {
-                self.prg_rom[self.mapper.cpu_read(addr)]
-            } else {
-                0
+            match addr {
+                0x6000..=0x7FFF => 0, //Battery backed save or work RAM
+                0x8000..=0xFFFF => self.prg_rom[self.mapper.cpu_read(addr)], //Cartridge ROM
+                _ => 0 //0x4020..0x5FFF -- Mapper specific
             }
-            
         }
 
         pub fn cpu_write(&self, addr: u16, value: u8) {
-
+            self.mapper.cpu_write(addr, value);
         }
 
         pub fn ppu_read(&self) {
-
+            println!("PPU read from cartridge not supported!");
+            panic!();
         }
     }
     
