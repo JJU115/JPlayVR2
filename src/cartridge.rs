@@ -22,10 +22,12 @@ pub mod cartridge {
         pub fn load_rom(file_name: &String) -> Result<Cartridge, String> {
             //Open file in read-only mode,
             let mut file = File::open(file_name).map_err(|_| String::from("Could not open file"))?;
+            println!("Found file: {}", file_name);
 
             //Read the header
             let mut ines_header: [u8; 16] = [0; 16];
             file.read_exact(&mut ines_header).map_err(|_| String::from("Could not read header"))?;
+            println!("Read header...");
 
             if ines_header[0] != 0x4E || ines_header[1] != 0x45 || ines_header[2] != 0x53 || ines_header[3] != 0x1A {
                 return Err(String::from("Bad iNES header"));
@@ -39,11 +41,13 @@ pub mod cartridge {
                 prg_rom: vec![0],
                 chr_rom: vec![0]
             };
+            println!("Mapper loaded");
 
             //Total size is in bytes
             cart.prg_rom.resize((ines_header[4] as u64 * 16384) as usize, 0);
             cart.chr_rom.resize((ines_header[5] as u64 * 8192) as usize, 0);
-
+            println!("PRG ROM size: {}, CHR ROM size: {}",ines_header[4] as u64 * 16384, ines_header[5] as u64 * 8192);
+            
             //Start of the PRG data, taking the trainer into account if present
             let cpu_start: u64 = 16 + if ines_header[6] & 0x04 != 0 {512} else {0}; 
 

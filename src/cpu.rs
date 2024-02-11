@@ -11,6 +11,8 @@
 
 pub mod cpu {
 
+    use std::fs::File;
+    use std::io::{BufRead, BufReader, Read, Write};
     use crate::cartridge::cartridge;
     use crate::ppu::ppu::Ricoh2c02;
 
@@ -49,7 +51,6 @@ pub mod cpu {
         TYA(AddressingMode),NAI
     }
 
-
     pub struct Mos6502<'a> {
         pub cart: &'a cartridge::Cartridge,
         pub ppu: &'a Ricoh2c02<'a>,
@@ -69,7 +70,10 @@ pub mod cpu {
         extra_cycles: u8,
 
         instruction_array: Vec<Instruction>,
-        instruction_cycles: Vec<u8>
+        instruction_cycles: Vec<u8>,
+
+        log: File,
+        log_comp: BufReader<File>,
     }
 
 
@@ -142,15 +146,18 @@ pub mod cpu {
                 cpu_ram: vec![0; 2048], 
                 extra_cycles: 0, 
                 instruction_array: instructions,
-                instruction_cycles: cycles
+                instruction_cycles: cycles,
+                log: File::create("CPU_LOG.txt").unwrap(),
+                log_comp: BufReader::new(File::open("nestest.log").unwrap())
             }
         }
 
 
-        pub fn reset(&mut self) {
+        pub fn reset(&mut self, power_up: bool) {
+            self.prg_cnt = 0xC000;//((self.cart.cpu_read(0xFFFD) as u16) << 8) | (self.cart.cpu_read(0xFFFC) as u16);
+            if power_up { return; }
             self.stat = self.stat | 0x04;
             self.stck_pnt = self.stck_pnt - 3;
-            self.prg_cnt = ((self.cart.cpu_read(0xFFFC) as u16) << 8) | (self.cart.cpu_read(0xFFFD) as u16);
         }
 
 
@@ -198,6 +205,18 @@ pub mod cpu {
         pub fn execute_instruction(&mut self) -> u8 {
             //Fetch the opcode and the next byte
             let opcode = self.cart.cpu_read(self.prg_cnt);
+
+
+            writeln!(self.log, "{:04X} {:02X}\tA:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
+            self.prg_cnt, opcode, self.acc, self.ind_x, self.ind_y, self.stat, self.stck_pnt).unwrap();
+            let mut buf = String::new();
+            self.log_comp.read_line(&mut buf).unwrap();
+            let correctPC = u16::from_str_radix(buf.get(0..4).unwrap(), 16).unwrap();
+            if correctPC != self.prg_cnt {
+                println!("Failed!");
+                return 0;
+            }
+
             self.extra_cycles = 0;
             self.prg_cnt += 1;
 
@@ -257,7 +276,7 @@ pub mod cpu {
                 Instruction::TYA(_mode) => self.tya(),
                 Instruction::NAI => println!("Unofficial/Unassigned opcode!")
             };
-            
+
             self.instruction_cycles[opcode as usize] + self.extra_cycles
         }
 
