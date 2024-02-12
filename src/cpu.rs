@@ -74,6 +74,7 @@ pub mod cpu {
 
         log: File,
         log_comp: BufReader<File>,
+        total_cycles: u64
     }
 
 
@@ -140,7 +141,7 @@ pub mod cpu {
                 acc: 0, 
                 ind_x: 0, 
                 ind_y: 0, 
-                stat: 0x34, 
+                stat: 0x24, 
                 stck_pnt: 0xFD, 
                 prg_cnt: 0xFFFC, 
                 cpu_ram: vec![0; 2048], 
@@ -148,7 +149,8 @@ pub mod cpu {
                 instruction_array: instructions,
                 instruction_cycles: cycles,
                 log: File::create("CPU_LOG.txt").unwrap(),
-                log_comp: BufReader::new(File::open("nestest.log").unwrap())
+                log_comp: BufReader::new(File::open("nestest.log").unwrap()),
+                total_cycles: 7
             }
         }
 
@@ -207,8 +209,8 @@ pub mod cpu {
             let opcode = self.cart.cpu_read(self.prg_cnt);
 
 
-            writeln!(self.log, "{:04X} {:02X}\tA:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}",
-            self.prg_cnt, opcode, self.acc, self.ind_x, self.ind_y, self.stat, self.stck_pnt).unwrap();
+            writeln!(self.log, "{:04X} {:02X}\tA:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}\tCYC:{}",
+            self.prg_cnt, opcode, self.acc, self.ind_x, self.ind_y, self.stat, self.stck_pnt, self.total_cycles).unwrap();
             let mut buf = String::new();
             self.log_comp.read_line(&mut buf).unwrap();
             let correctPC = u16::from_str_radix(buf.get(0..4).unwrap(), 16).unwrap();
@@ -276,7 +278,7 @@ pub mod cpu {
                 Instruction::TYA(_mode) => self.tya(),
                 Instruction::NAI => println!("Unofficial/Unassigned opcode!")
             };
-
+            self.total_cycles += (self.instruction_cycles[opcode as usize] + self.extra_cycles) as u64;
             self.instruction_cycles[opcode as usize] + self.extra_cycles
         }
 
@@ -330,8 +332,16 @@ pub mod cpu {
 
 
         fn adc(&mut self, mode: &AddressingMode) {
-            let data = self.fetch_instruction_data(mode);
-            let sum = self.acc + data.0 + self.stat & 0x01;
+            let data: (u8, u16) = self.fetch_instruction_data(mode);
+            let sum: u8 = self.acc + data.0 + (self.stat & 0x01) ;
+
+            match self.acc.checked_add(data.0) {
+                Some(val) => {
+                    
+                },
+                None => eprintln!("Too much!"),
+            }
+
             self.stat &= 0xBE;
             //Carry
             if ((self.acc & 0x80) == (data.0 & 0x80)) && ((sum & 0x80) != (self.acc & 0x80)) {
@@ -664,7 +674,7 @@ pub mod cpu {
             self.stck_pnt += 1;
             self.prg_cnt = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16) << 8;
             self.stck_pnt += 1;
-            self.prg_cnt += 1;
+            self.prg_cnt += 2;
         }
        
         fn sbc(&mut self, mode: &AddressingMode) {
