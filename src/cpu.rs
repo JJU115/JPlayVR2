@@ -333,16 +333,9 @@ pub mod cpu {
 
         fn adc(&mut self, mode: &AddressingMode) {
             let data: (u8, u16) = self.fetch_instruction_data(mode);
-            let sum: u8 = self.acc + data.0 + (self.stat & 0x01) ;
-
-            match self.acc.checked_add(data.0) {
-                Some(val) => {
-                    
-                },
-                None => eprintln!("Too much!"),
-            }
-
+            let sum: u8 = self.acc.wrapping_add(data.0).wrapping_add(self.stat & 1);
             self.stat &= 0xBE;
+
             //Carry
             if ((self.acc & 0x80) == (data.0 & 0x80)) && ((sum & 0x80) != (self.acc & 0x80)) {
                 self.stat |= 0x40;
@@ -458,7 +451,7 @@ pub mod cpu {
             self.stat &= 0x7C;
             if self.acc >= data.0 { self.stat |= 0x01; }
             if self.acc == data.0 { self.stat |= 0x02; }
-            if (self.acc - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
+            if (self.acc.wrapping_sub(data.0)) & 0x80 == 0x80 { self.stat |= 0x80 }
         }
 
         
@@ -467,7 +460,7 @@ pub mod cpu {
             self.stat &= 0x7C;
             if self.ind_x >= data.0 { self.stat |= 0x01; }
             if self.ind_x == data.0 { self.stat |= 0x02; }
-            if (self.ind_x - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
+            if (self.ind_x.wrapping_sub(data.0)) & 0x80 == 0x80 { self.stat |= 0x80 }
         }
 
 
@@ -476,7 +469,7 @@ pub mod cpu {
             self.stat &= 0x7C;
             if self.ind_y >= data.0 { self.stat |= 0x01; }
             if self.ind_y == data.0 { self.stat |= 0x02; }
-            if (self.ind_y - data.0) & 0x80 == 0x80 { self.stat |= 0x80 }
+            if (self.ind_y.wrapping_sub(data.0)) & 0x80 == 0x80 { self.stat |= 0x80 }
         }
 
 
@@ -488,13 +481,13 @@ pub mod cpu {
 
         
         fn dex(&mut self) {
-            self.ind_x -= 1;
+            self.ind_x = self.ind_x.wrapping_sub(1);
             self.examine_status(self.ind_x);
         }
 
 
         fn dey(&mut self) {
-            self.ind_y -= 1;
+            self.ind_y = self.ind_y.wrapping_sub(1);
             self.examine_status(self.ind_y);
         }
 
@@ -513,12 +506,12 @@ pub mod cpu {
         }
 
         fn inx(&mut self) {
-            self.ind_x += 1;
+            self.ind_x = self.ind_x.wrapping_add(1);
             self.examine_status(self.ind_x);
         }
 
         fn iny(&mut self) {
-            self.ind_y += 1;
+            self.ind_y = self.ind_y.wrapping_add(1);
             self.examine_status(self.ind_y);
         }
 
@@ -548,7 +541,7 @@ pub mod cpu {
         */
         fn jsr(&mut self) {
             self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
-            self.cpu_ram[(0x0100 + (self.stck_pnt - 1) as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
+            self.cpu_ram[(0x00FF + self.stck_pnt as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
             self.stck_pnt -= 2;
 
             self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | self.cart.cpu_read(self.prg_cnt) as u16;
@@ -654,10 +647,9 @@ pub mod cpu {
             6  $0100,S  R  pull PCH from stack
         */
         fn rti(&mut self) {
-            self.stck_pnt += 1;
-            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];
-            self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt as u16) as usize] as u16) << 8;
-            self.stck_pnt += 2;
+            self.stat = self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize];
+            self.prg_cnt = self.cpu_ram[(0x0102 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0103 + self.stck_pnt as u16) as usize] as u16) << 8;
+            self.stck_pnt += 3;
         }
 
         /*
@@ -671,9 +663,8 @@ pub mod cpu {
             6    PC     R  increment PC
         */
         fn rts(&mut self) {
-            self.stck_pnt += 1;
-            self.prg_cnt = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16) << 8;
-            self.stck_pnt += 1;
+            self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt as u16) as usize] as u16) << 8;
+            self.stck_pnt += 2;
             self.prg_cnt += 2;
         }
        
@@ -712,7 +703,7 @@ pub mod cpu {
 
 
         fn tsx(&mut self) {
-            self.ind_x = self.stat;
+            self.ind_x = self.stck_pnt;
             self.examine_status(self.ind_x);
         }
 
@@ -724,7 +715,7 @@ pub mod cpu {
 
 
         fn txs(&mut self) {
-            self.stat = self.ind_x;
+            self.stck_pnt = self.ind_x;
         }
 
 
