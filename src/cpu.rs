@@ -183,7 +183,7 @@ pub mod cpu {
 
 
         fn writeback(&mut self, addr: u16, value: u8) {
-                        match addr {
+            match addr {
                 0x0000..=0x1FFF => {
                     self.cpu_ram[(addr & 0x07FF) as usize] = value;
                 },
@@ -536,8 +536,8 @@ pub mod cpu {
                             byte to PCH
         */
         fn jsr(&mut self) {
-            self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
-            self.cpu_ram[(0x00FF + self.stck_pnt as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
+            self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = ((1 + self.prg_cnt & 0xFF00) >> 8) as u8;
+            self.cpu_ram[(0x00FF + self.stck_pnt as u16) as usize] = (1 + self.prg_cnt & 0xFF) as u8;
             self.stck_pnt -= 2;
 
             self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | self.cart.cpu_read(self.prg_cnt) as u16;
@@ -595,7 +595,7 @@ pub mod cpu {
 
 
         fn pla(&mut self) {
-                        self.stck_pnt += 1;
+            self.stck_pnt += 1;
             self.acc = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];         
             self.examine_status(self.acc);
         }
@@ -661,7 +661,7 @@ pub mod cpu {
         fn rts(&mut self) {
             self.prg_cnt = self.cpu_ram[(0x0101 + self.stck_pnt as u16) as usize] as u16 | (self.cpu_ram[(0x0102 + self.stck_pnt as u16) as usize] as u16) << 8;
             self.stck_pnt += 2;
-            self.prg_cnt += 2;
+            self.prg_cnt += 1;
         }
        
         fn sbc(&mut self, mode: &AddressingMode) {
