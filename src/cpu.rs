@@ -183,7 +183,7 @@ pub mod cpu {
 
 
         fn writeback(&mut self, addr: u16, value: u8) {
-            match addr {
+                        match addr {
                 0x0000..=0x1FFF => {
                     self.cpu_ram[(addr & 0x07FF) as usize] = value;
                 },
@@ -429,15 +429,11 @@ pub mod cpu {
         fn brk(&mut self) {
             self.prg_cnt += 1;
             self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = ((self.prg_cnt & 0xFF00) >> 8) as u8;
-            self.cpu_ram[(0x0100 + (self.stck_pnt - 1) as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
-            self.stck_pnt -= 2;
-
-            self.stat |= 0x10;
-            self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize] = self.stat | 0x30;
-            self.stck_pnt -= 1;
-
+            self.cpu_ram[(0x00FF + self.stck_pnt as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
+            self.cpu_ram[(0x00FE + self.stck_pnt as u16) as usize] = self.stat | 0x30;
+            self.stck_pnt -= 3;
             self.prg_cnt = self.cart.cpu_read(0xFFFE) as u16 | (self.cart.cpu_read(0xFFFF) as u16) << 8;
-            self.stat |= 0x04;
+            self.stat |= 0x14;
         }
 
         //AND mask with status register
@@ -599,14 +595,14 @@ pub mod cpu {
 
 
         fn pla(&mut self) {
-            self.stck_pnt += 1;
+                        self.stck_pnt += 1;
             self.acc = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];         
             self.examine_status(self.acc);
         }
 
         fn plp(&mut self) {
             self.stck_pnt += 1;
-            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];          
+            self.stat = self.cpu_ram[(0x0100 + self.stck_pnt as u16) as usize];       
         }
 
 
