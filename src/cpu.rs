@@ -12,7 +12,7 @@
 pub mod cpu {
 
     use std::fs::File;
-    use std::io::{BufRead, BufReader, Read, Write};
+    use std::io::{BufRead, BufReader, Write};
     use crate::cartridge::cartridge;
     use crate::ppu::ppu::Ricoh2c02;
 
@@ -220,7 +220,7 @@ pub mod cpu {
             }
 
             self.extra_cycles = 0;
-            self.prg_cnt += 1;
+            self.prg_cnt += 1; //CEFD
 
             match self.instruction_array[opcode as usize] {
                 Instruction::ADC(mode) => self.adc(&mode),
@@ -286,6 +286,7 @@ pub mod cpu {
         //Returns a tuple where 1st element is data to operate on, 2nd is the writeback address
         fn fetch_instruction_data(&mut self, mode: &AddressingMode) -> (u8, u16) {
             let data: u8 = self.cart.cpu_read(self.prg_cnt);
+            if let AddressingMode::Accumulator = mode {self.prg_cnt -= 1;} //If addressing mode is accumulator, we need to cancel out the increment on the next line
             self.prg_cnt += 1;
             match mode {
                 AddressingMode::Accumulator => (self.acc, 0),
@@ -313,17 +314,14 @@ pub mod cpu {
                 AddressingMode::ZeroPageX => (self.cpu_ram[(data + self.ind_x) as usize], data as u16),
                 AddressingMode::ZeroPageY => (self.cpu_ram[(data + self.ind_y) as usize], data as u16),
                 AddressingMode::IndirectX => {
-                    let low = self.cart.cpu_read((data + self.ind_x) as u16);
-                    let high = self.cart.cpu_read((data + self.ind_x + 1) as u16);
-                    let addr = (high as u16) << 8 | low as u16;
+                    let addr = (self.cpu_ram[data.wrapping_add(self.ind_x).wrapping_add(1) as usize] as u16) << 8 | self.cpu_ram[data.wrapping_add(self.ind_x) as usize] as u16;
                     (self.fetch_from_address(addr), addr) 
                 },
                 AddressingMode::IndirectY => {
-                    let low = self.cart.cpu_read(data as u16);
-                    let high = self.cart.cpu_read((data + 1) as u16);
-                    let addr = ((high as u16) << 8 | low as u16) + self.ind_y as u16;
-                    if (low + self.ind_y) as u16 > 255 { self.extra_cycles += 1; }
-                    (self.fetch_from_address(addr), addr) 
+                    let high: u16 = self.cpu_ram[data.wrapping_add(1) as usize] as u16;
+                    let addr = high << 8 | self.cpu_ram[data as usize] as u16;
+                    if high + self.ind_y as u16 > 255 { self.extra_cycles += 1; }
+                    (self.fetch_from_address(addr + self.ind_y as u16), addr) 
                 },
                 _ => (0,0)
             }
@@ -608,20 +606,20 @@ pub mod cpu {
 
         fn rol(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
-            let temp = data.0 << 1;
+            let temp = (data.0 << 1) | (self.stat & 0x01);
             if let AddressingMode::Accumulator = mode {
                 self.acc = temp;
             } else {
                 self.writeback(data.1, temp);
             }
             self.stat &= 0xFE;
-            self.stat |= (data.0 & 0x01) << 7;
+            self.stat |= (data.0 & 0x80) >> 7;
             self.examine_status(temp);
         }
 
         fn ror(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
-            let temp = data.0 >> 1;
+            let temp = (data.0 >> 1) | ((self.stat & 0x01) << 7);
             if let AddressingMode::Accumulator = mode {
                 self.acc = temp;
             } else {
