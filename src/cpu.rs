@@ -321,7 +321,7 @@ pub mod cpu {
                     let high: u16 = self.cpu_ram[data.wrapping_add(1) as usize] as u16;
                     let addr = high << 8 | self.cpu_ram[data as usize] as u16;
                     if high + self.ind_y as u16 > 255 { self.extra_cycles += 1; }
-                    (self.fetch_from_address(addr + self.ind_y as u16), addr) 
+                    (self.fetch_from_address(addr.wrapping_add(self.ind_y as u16)), addr)
                 },
                 _ => (0,0)
             }
@@ -469,8 +469,8 @@ pub mod cpu {
 
         fn dec(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
-            self.writeback(data.1, data.0 - 1);
-            self.examine_status(data.0 - 1);
+            self.writeback(data.1, data.0.wrapping_sub(1));
+            self.examine_status(data.0.wrapping_sub(1));
         }
 
         
@@ -495,8 +495,8 @@ pub mod cpu {
 
         fn inc(&mut self, mode: &AddressingMode) {
             let data = self.fetch_instruction_data(mode);
-            self.writeback(data.1, data.0 + 1);
-            self.examine_status(data.0 + 1);
+            self.writeback(data.1, data.0.wrapping_add(1));
+            self.examine_status(data.0.wrapping_add(1));
         }
 
         fn inx(&mut self) {
