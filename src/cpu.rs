@@ -206,7 +206,7 @@ pub mod cpu {
 
         pub fn execute_instruction(&mut self) -> u8 {
             //Fetch the opcode and the next byte
-            let opcode = self.cart.cpu_read(self.prg_cnt);
+            let opcode = self.fetch_from_address(self.prg_cnt);
 
 
             writeln!(self.log, "{:04X} {:02X}\tA:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}\tCYC:{}",
@@ -285,7 +285,7 @@ pub mod cpu {
 
         //Returns a tuple where 1st element is data to operate on, 2nd is the writeback address
         fn fetch_instruction_data(&mut self, mode: &AddressingMode) -> (u8, u16) {
-            let data: u8 = self.cart.cpu_read(self.prg_cnt);
+            let data: u8 = self.fetch_from_address(self.prg_cnt);
             if let AddressingMode::Accumulator = mode {self.prg_cnt -= 1;} //If addressing mode is accumulator, we need to cancel out the increment on the next line
             self.prg_cnt += 1;
             match mode {
@@ -293,26 +293,36 @@ pub mod cpu {
                 AddressingMode::Immediate => (data, 0),
                 AddressingMode::ZeroPage => (self.cpu_ram[data as usize], data as u16),
                 AddressingMode::Absolute => {
-                    let addr = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | data as u16;
+                    let addr = (self.fetch_from_address(self.prg_cnt) as u16) << 8 | data as u16;
                     self.prg_cnt += 1;
                     (self.fetch_from_address(addr), addr) 
                 },
                 AddressingMode::AbsoluteIndexX => {
-                    let addr: u16 = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | (data + self.ind_x) as u16;
+                    let mut addr: u16 = (self.fetch_from_address(self.prg_cnt) as u16) << 8 | data as u16;
                     self.prg_cnt += 1;
                     //'oops' cycle, but only for read instructions that cross a page
-                    if (data + self.ind_x) as u16 > 255 { self.extra_cycles += 1; }
+                    if let Option::None = data.checked_add(self.ind_x) {
+                        addr = addr.wrapping_add(self.ind_x as u16);
+                        self.extra_cycles += 1;
+                    } else {
+                        addr += self.ind_x as u16;
+                    }
                     (self.fetch_from_address(addr), addr)
                 },
                 AddressingMode::AbsoluteIndexY => {
-                    let addr: u16 = (self.cart.cpu_read(self.prg_cnt) as u16) << 8 | (data + self.ind_y) as u16;
+                    let mut addr: u16 = (self.fetch_from_address(self.prg_cnt) as u16) << 8 | data as u16;
                     self.prg_cnt += 1;
                     //'oops' cycle, but only for read instructions that cross a page
-                    if (data + self.ind_y) as u16 > 255 { self.extra_cycles += 1; }
+                    if let Option::None = data.checked_add(self.ind_y) {
+                        addr = addr.wrapping_add(self.ind_y as u16);
+                        self.extra_cycles += 1;
+                    } else {
+                        addr += self.ind_y as u16;
+                    }
                     (self.fetch_from_address(addr), addr)
                 },
-                AddressingMode::ZeroPageX => (self.cpu_ram[(data + self.ind_x) as usize], data as u16),
-                AddressingMode::ZeroPageY => (self.cpu_ram[(data + self.ind_y) as usize], data as u16),
+                AddressingMode::ZeroPageX => (self.cpu_ram[data.wrapping_add(self.ind_x) as usize], data as u16),
+                AddressingMode::ZeroPageY => (self.cpu_ram[data.wrapping_add(self.ind_y) as usize], data as u16),
                 AddressingMode::IndirectX => {
                     let addr = (self.cpu_ram[data.wrapping_add(self.ind_x).wrapping_add(1) as usize] as u16) << 8 | self.cpu_ram[data.wrapping_add(self.ind_x) as usize] as u16;
                     (self.fetch_from_address(addr), addr) 
@@ -386,7 +396,7 @@ pub mod cpu {
                 _ => 0
             };
 
-            let op: i8 = self.cart.cpu_read(self.prg_cnt) as i8;
+            let op: i8 = self.fetch_from_address(self.prg_cnt) as i8;
             self.prg_cnt += 1;
 
             if comp == value {
@@ -430,7 +440,7 @@ pub mod cpu {
             self.cpu_ram[(0x00FF + self.stck_pnt as u16) as usize] = (self.prg_cnt & 0xFF) as u8;
             self.cpu_ram[(0x00FE + self.stck_pnt as u16) as usize] = self.stat | 0x30;
             self.stck_pnt -= 3;
-            self.prg_cnt = self.cart.cpu_read(0xFFFE) as u16 | (self.cart.cpu_read(0xFFFF) as u16) << 8;
+            self.prg_cnt = self.fetch_from_address(0xFFFE) as u16 | (self.fetch_from_address(0xFFFF) as u16) << 8;
             self.stat |= 0x14;
         }
 
@@ -513,12 +523,12 @@ pub mod cpu {
         //JMP Instruction - Absolute or indirect addressing modes
         fn jmp(&mut self, mode: &AddressingMode) {
             if let AddressingMode::Absolute = mode {
-                self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | self.cart.cpu_read(self.prg_cnt) as u16;
+                self.prg_cnt = (self.fetch_from_address(self.prg_cnt + 1) as u16) << 8 | self.fetch_from_address(self.prg_cnt) as u16;
             } else {
-                let target = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | 
-                    self.cart.cpu_read(self.prg_cnt) as u16;
-                
-                self.prg_cnt = (self.cart.cpu_read(target + 1) as u16) << 8 | self.cart.cpu_read(target) as u16;
+                //Indirect addressing mode
+                let target = (self.fetch_from_address(self.prg_cnt + 1) as u16) << 8 | self.fetch_from_address(self.prg_cnt) as u16;
+                //If the indirect vector falls on a page boundary, ($xxFF), top byte of final jump destination is fetched from $xx00
+                self.prg_cnt = (self.fetch_from_address(if target & 0xFF == 0xFF { target & 0xFF00} else {target + 1}) as u16) << 8 | self.fetch_from_address(target) as u16;
             }
         }
 
@@ -538,7 +548,7 @@ pub mod cpu {
             self.cpu_ram[(0x00FF + self.stck_pnt as u16) as usize] = (1 + self.prg_cnt & 0xFF) as u8;
             self.stck_pnt -= 2;
 
-            self.prg_cnt = (self.cart.cpu_read(self.prg_cnt + 1) as u16) << 8 | self.cart.cpu_read(self.prg_cnt) as u16;
+            self.prg_cnt = (self.fetch_from_address(self.prg_cnt + 1) as u16) << 8 | self.fetch_from_address(self.prg_cnt) as u16;
         }
 
 
