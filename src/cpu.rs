@@ -321,8 +321,8 @@ pub mod cpu {
                     }
                     (self.fetch_from_address(addr), addr)
                 },
-                AddressingMode::ZeroPageX => (self.cpu_ram[data.wrapping_add(self.ind_x) as usize], data as u16),
-                AddressingMode::ZeroPageY => (self.cpu_ram[data.wrapping_add(self.ind_y) as usize], data as u16),
+                AddressingMode::ZeroPageX => (self.cpu_ram[data.wrapping_add(self.ind_x) as usize], data.wrapping_add(self.ind_x) as u16),
+                AddressingMode::ZeroPageY => (self.cpu_ram[data.wrapping_add(self.ind_y) as usize], data.wrapping_add(self.ind_y) as u16),
                 AddressingMode::IndirectX => {
                     let addr = (self.cpu_ram[data.wrapping_add(self.ind_x).wrapping_add(1) as usize] as u16) << 8 | self.cpu_ram[data.wrapping_add(self.ind_x) as usize] as u16;
                     (self.fetch_from_address(addr), addr) 
