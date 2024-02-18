@@ -12,7 +12,7 @@
 pub mod cpu {
 
     use std::fs::File;
-    use std::io::{BufRead, BufReader, Write};
+    use std::io::Write;
     use crate::cartridge::cartridge;
     use crate::ppu::ppu::Ricoh2c02;
 
@@ -73,7 +73,6 @@ pub mod cpu {
         instruction_cycles: Vec<u8>,
 
         log: File,
-        log_comp: BufReader<File>,
         total_cycles: u64
     }
 
@@ -149,14 +148,13 @@ pub mod cpu {
                 instruction_array: instructions,
                 instruction_cycles: cycles,
                 log: File::create("CPU_LOG.txt").unwrap(),
-                log_comp: BufReader::new(File::open("nestest.log").unwrap()),
                 total_cycles: 7
             }
         }
 
 
         pub fn reset(&mut self, power_up: bool) {
-            self.prg_cnt = 0xC000;//((self.cart.cpu_read(0xFFFD) as u16) << 8) | (self.cart.cpu_read(0xFFFC) as u16);
+            self.prg_cnt = ((self.cart.cpu_read(0xFFFD) as u16) << 8) | (self.cart.cpu_read(0xFFFC) as u16);
             if power_up { return; }
             self.stat = self.stat | 0x04;
             self.stck_pnt = self.stck_pnt - 3;
@@ -208,19 +206,10 @@ pub mod cpu {
             //Fetch the opcode and the next byte
             let opcode = self.fetch_from_address(self.prg_cnt);
 
-
             writeln!(self.log, "{:04X} {:02X}\tA:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X}\tCYC:{}",
             self.prg_cnt, opcode, self.acc, self.ind_x, self.ind_y, self.stat, self.stck_pnt, self.total_cycles).unwrap();
-            let mut buf = String::new();
-            self.log_comp.read_line(&mut buf).unwrap();
-            let correctPC = u16::from_str_radix(buf.get(0..4).unwrap(), 16).unwrap();
-            if correctPC != self.prg_cnt {
-                println!("Failed!");
-                return 0;
-            }
-
             self.extra_cycles = 0;
-            self.prg_cnt += 1; //CEFD
+            self.prg_cnt += 1;
 
             match self.instruction_array[opcode as usize] {
                 Instruction::ADC(mode) => self.adc(&mode),
