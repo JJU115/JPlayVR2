@@ -169,8 +169,16 @@ pub mod cpu {
                 //$2000–$2007 PPU registers, $2008–$3FFF mirrors $2000–$2007 every 8 bytes
                 0x2000..=0x3FFF => 0,
               
-                //$4000–$4017 NES APU registers, anything other than $4015 produces open bus behavior
-                0x4000..=0x4013 => 0,
+                //$4000–$4017 NES APU registers, anything other than $4015, $4016, $4017 produces open bus behavior
+                0x4000..=0x4014 => 0,
+
+                0x4015 => 0,
+
+                //Joystick one data
+                0x4016 => 0,
+
+                //Joystick two data
+                0x4017 => 0,
 
                 //$4020–$FFFF Cartridge space: PRG ROM, PRG RAM, and mapper registers 
                 0x4020..=0xFFFF => self.cart.cpu_read(addr),
@@ -188,11 +196,17 @@ pub mod cpu {
                 0x2000..=0x3FFF => {
                     //PPU registers
                 },
-                0x4000..=0x4013 | 0x4015..=0x4017 => {
+                0x4000..=0x4013 | 0x4015 => {
                     //APU Registers
                 },
                 0x4014 => {
                     //OAM DMA
+                },              
+                0x4016 => {
+                    //Joystick strobe
+                },              
+                0x4017 => {
+                    //Frame counter control
                 },              
                 0x4020..=0xFFFF => {
                     self.cart.cpu_write(addr, value);
@@ -318,7 +332,7 @@ pub mod cpu {
                 },
                 AddressingMode::IndirectY => {
                     let high: u16 = self.cpu_ram[data.wrapping_add(1) as usize] as u16;
-                    let addr = high << 8 | self.cpu_ram[data as usize] as u16;
+                    let addr: u16 = high << 8 | self.cpu_ram[data as usize] as u16;
                     if high + self.ind_y as u16 > 255 { self.extra_cycles += 1; }
                     (self.fetch_from_address(addr.wrapping_add(self.ind_y as u16)), addr)
                 },
