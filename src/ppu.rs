@@ -7,6 +7,20 @@ pub mod ppu {
         current_scanline: u16,
         scanline_cycle: u16,
         is_odd_cycle: bool,
+
+        ppu_ctrl: u8,
+        ppu_status: u8,
+        ppu_mask: u8,
+        oam_addr: u8,
+        oam_data: u8,
+        ppu_scroll: u8,
+        ppu_addr: u8,
+        ppu_data: u8,
+
+        vram_addr: u16, //v
+        temp_vram_addr: u16, //t
+        fine_x_scroll: u8, //x
+        write_toggle: bool, //w
     }
 
 
@@ -18,12 +32,66 @@ pub mod ppu {
                 cart: c,
                 current_scanline: 0,
                 scanline_cycle: 0,
-                is_odd_cycle: false
+                is_odd_cycle: false,
+
+                ppu_ctrl: 0,
+                ppu_status: 0xA0,
+                ppu_mask: 0,
+                oam_addr: 0,
+                oam_data: 0,
+                ppu_scroll: 0,
+                ppu_addr: 0,
+                ppu_data: 0,
+
+                vram_addr: 0,
+                temp_vram_addr: 0,
+                fine_x_scroll: 0,
+                write_toggle: false,
              }
         }
 
         pub fn reset(&self) {
 
+        }
+
+
+        pub fn register_read(&self, register_index: u8) -> u8 {
+            match register_index {
+                0 | 1 | 3 | 5 | 6 => 0, //Should return open bus
+                2 => { //PPUSTATUS
+                    self.ppu_status
+                },
+                4 => { //OAMDATA
+                    //Pull value from OAM at address in OAMADDR
+                    0
+                },
+                7 => { //PPUDATA
+                    //Read from vram from the address specified in PPUADDR, then increment PPUADDR
+                    //Specific behavior here, see wiki
+                    0
+                },
+                _ => 0
+            }
+        }
+
+
+        pub fn register_write(&self, register_index: u8, value: u8) {
+            match register_index {
+                //PPUCTRL, after power/reset, writes here are ignored for ~30,000 cycles
+                //If currently in vertical blank and PPUSTATUS has vblank flag is set, 
+                //changing bit 7 here from 0 to 1 generates an NMI
+                0 => {self.ppu_ctrl = value;}
+                //PPUMASK, rendering of sprites/backgrounds enabled and disabled here
+                1 => {self.ppu_mask = value;}
+                //OAMDADDR, set to 0 during each of ticks 257–320 of the pre-render and visible scanlines
+                3 => {self.oam_addr = value;}
+                //OAMDATA, 
+                4 => {self.oam_data = value;}
+                5 => {}
+                6 => 0, //Should return open bus
+                
+                _ => ()
+            }
         }
 
         //Based on the internal current cycle, perform one of several actions

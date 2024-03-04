@@ -172,6 +172,7 @@ pub mod cpu {
                 //$4000–$4017 NES APU registers, anything other than $4015, $4016, $4017 produces open bus behavior
                 0x4000..=0x4014 => 0,
 
+                //APU Status
                 0x4015 => 0,
 
                 //Joystick one data
