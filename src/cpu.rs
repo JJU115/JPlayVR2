@@ -53,7 +53,7 @@ pub mod cpu {
 
     pub struct Mos6502<'a> {
         pub cart: &'a cartridge::Cartridge,
-        pub ppu: &'a Ricoh2c02<'a>,
+        pub ppu: &'a mut Ricoh2c02<'a>,
 
         //Registers
         acc: u8,
@@ -79,7 +79,7 @@ pub mod cpu {
 
     impl Mos6502<'_> {
 
-        pub fn new<'a>(cart: &'a cartridge::Cartridge, ppu: &'a Ricoh2c02<'a>) -> Mos6502<'a> {
+        pub fn new<'a>(cart: &'a cartridge::Cartridge, ppu: &'a mut Ricoh2c02<'a>) -> Mos6502<'a> {
             let instructions: Vec<Instruction> = vec![
                 Instruction::BRK(AddressingMode::Immediate), Instruction::ORA(AddressingMode::IndirectX), Instruction::NAI, Instruction::NAI, Instruction::NOP(AddressingMode::ZeroPage), Instruction::ORA(AddressingMode::ZeroPage), Instruction::ASL(AddressingMode::ZeroPage), Instruction::NAI, 
                 Instruction::PHP(AddressingMode::Implied), Instruction::ORA(AddressingMode::Immediate), Instruction::ASL(AddressingMode::Accumulator), Instruction::NAI, Instruction::NOP(AddressingMode::Absolute), Instruction::ORA(AddressingMode::Absolute), Instruction::ASL(AddressingMode::Absolute), Instruction::NAI, 
@@ -167,7 +167,7 @@ pub mod cpu {
                 0x0000..=0x1FFF => self.cpu_ram[(addr & 0x07FF) as usize],
 
                 //$2000–$2007 PPU registers, $2008–$3FFF mirrors $2000–$2007 every 8 bytes
-                0x2000..=0x3FFF => 0,
+                0x2000..=0x3FFF => self.ppu.register_read(((addr & 0x2007) - 0x2000) as u8),
               
                 //$4000–$4017 NES APU registers, anything other than $4015, $4016, $4017 produces open bus behavior
                 0x4000..=0x4014 => 0,
@@ -195,7 +195,8 @@ pub mod cpu {
                     self.cpu_ram[(addr & 0x07FF) as usize] = value;
                 },
                 0x2000..=0x3FFF => {
-                    //PPU registers
+                    //PPU registers - 0x2000-0x2007 mirrored every 8 bytes
+                    self.ppu.register_write(((addr & 0x2007) - 0x2000) as u8, value);
                 },
                 0x4000..=0x4013 | 0x4015 => {
                     //APU Registers

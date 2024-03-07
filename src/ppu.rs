@@ -21,6 +21,10 @@ pub mod ppu {
         temp_vram_addr: u16, //t
         fine_x_scroll: u8, //x
         write_toggle: bool, //w
+
+        nmi_occurred: bool,
+        nmi_output: bool,
+        supress_nmi: bool
     }
 
 
@@ -47,6 +51,16 @@ pub mod ppu {
                 temp_vram_addr: 0,
                 fine_x_scroll: 0,
                 write_toggle: false,
+
+            /*
+                Start of vertical blanking: Set NMI_occurred in PPU to true.
+                End of vertical blanking, sometime in pre-render scanline: Set NMI_occurred to false.
+                Read PPUSTATUS: Return old status of NMI_occurred in bit 7, then set NMI_occurred to false.
+                Write to PPUCTRL: Set NMI_output to bit 7. 
+            */
+                nmi_occurred: false,
+                nmi_output: false,
+                supress_nmi: false
              }
         }
 
@@ -55,11 +69,16 @@ pub mod ppu {
         }
 
 
-        pub fn register_read(&self, register_index: u8) -> u8 {
+        pub fn register_read(&mut self, register_index: u8) -> u8 {
             match register_index {
                 0 | 1 | 3 | 5 | 6 => 0, //Should return open bus
                 2 => { //PPUSTATUS
-                    self.ppu_status
+                    let reg_value = if self.nmi_occurred {self.ppu_status | 0x80} else {self.ppu_status};
+                    self.supress_nmi = (self.current_scanline == 242) && (self.scanline_cycle < 3);
+                    self.nmi_occurred = false;
+                    self.ppu_status &= 0x7F;
+                    self.write_toggle = false;
+                    reg_value
                 },
                 4 => { //OAMDATA
                     //Pull value from OAM at address in OAMADDR
@@ -75,7 +94,7 @@ pub mod ppu {
         }
 
 
-        pub fn register_write(&self, register_index: u8, value: u8) {
+        pub fn register_write(&mut self, register_index: u8, value: u8) {
             match register_index {
                 //PPUCTRL, after power/reset, writes here are ignored for ~30,000 cycles
                 //If currently in vertical blank and PPUSTATUS has vblank flag is set, 
@@ -88,7 +107,7 @@ pub mod ppu {
                 //OAMDATA, 
                 4 => {self.oam_data = value;}
                 5 => {}
-                6 => 0, //Should return open bus
+                6 => (), //Should return open bus
                 
                 _ => ()
             }
