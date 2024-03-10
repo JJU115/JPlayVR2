@@ -24,7 +24,6 @@ fn main() {
         }
     };
 
-    //Why does p need to be mut and cpu demand that the ppu is a mut reference but cart is the same and doesn't need that?
     let mut p = ppu::ppu::Ricoh2c02::new(&cart);
     let mut nes  = console::console::Console {
         cpu: &mut cpu::cpu::Mos6502::new(&cart, &mut p),

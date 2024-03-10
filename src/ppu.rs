@@ -1,9 +1,14 @@
 pub mod ppu {
     use crate::cartridge::cartridge::Cartridge;
 
-
     pub struct Ricoh2c02<'a> {
         pub cart: &'a Cartridge,
+
+        vram: Vec<u8>,
+        primary_oam: Vec<u8>,
+        secondary_oam: Vec<u8>,
+        ppudata_buffer: u8,
+
         current_scanline: u16,
         scanline_cycle: u16,
         is_odd_cycle: bool,
@@ -34,6 +39,12 @@ pub mod ppu {
         pub fn new(c: &Cartridge) -> Ricoh2c02 {
             Ricoh2c02 { 
                 cart: c,
+
+                vram: vec![0; 2048],
+                primary_oam: vec![0; 256],
+                secondary_oam: vec![0; 64],
+                ppudata_buffer: 0,
+
                 current_scanline: 0,
                 scanline_cycle: 0,
                 is_odd_cycle: false,
@@ -82,24 +93,34 @@ pub mod ppu {
                 },
                 4 => { //OAMDATA
                     //Pull value from OAM at address in OAMADDR
-                    0
+                    self.primary_oam[self.oam_addr as usize]
                 },
-                7 => { //PPUDATA
+                7 => { //PPUDATA when v is before palettes
                     //Read from vram from the address specified in PPUADDR, then increment PPUADDR
-                    //Specific behavior here, see wiki
-                    0
+                    //Utilize the internal read buffer
+                    let buffer_val = self.ppudata_buffer;
+                    self.ppudata_buffer = self.vram[self.vram_addr as usize];
+                    self.vram_addr += if self.ppu_ctrl & 0x04 == 0 {1} else {32};
+                    buffer_val
                 },
                 _ => 0
             }
         }
 
 
-        pub fn register_write(&mut self, register_index: u8, value: u8) {
+        //Writes to the PPUCTRL, PPUMASK, PPUADDR, PPUSTATUS are ignored if earlier than ~29658 CPU clocks after reset
+        pub fn register_write(&mut self, register_index: u8, value: u8, cycles_passed: u16) {
             match register_index {
-                //PPUCTRL, after power/reset, writes here are ignored for ~30,000 cycles
                 //If currently in vertical blank and PPUSTATUS has vblank flag is set, 
                 //changing bit 7 here from 0 to 1 generates an NMI
-                0 => {self.ppu_ctrl = value;}
+                0 => {
+                    let gen_nmi: bool = self.ppu_ctrl & 0x80 == 0 && 
+                                        value & 0x80 != 0 &&
+                                        self.ppu_status & 0x80 != 0 &&
+                                        self.current_scanline > 240;
+                    self.ppu_ctrl = value;
+                
+                }
                 //PPUMASK, rendering of sprites/backgrounds enabled and disabled here
                 1 => {self.ppu_mask = value;}
                 //OAMDADDR, set to 0 during each of ticks 257–320 of the pre-render and visible scanlines

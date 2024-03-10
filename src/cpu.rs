@@ -1,13 +1,3 @@
-//TODO
-/*
-    1. sort out signed branching in branch function --DONE
-    2. check 'oops' cycles are properly calculated --TODO
-    3. finish instruction match block -- array of the instruction enum? then match on that?
-    4. verify cycle accuracy and proper number returned from execute_instruction function
-
-
-*/
-
 
 pub mod cpu {
 
@@ -68,12 +58,12 @@ pub mod cpu {
 
         //'oops' cycles and the like
         extra_cycles: u8,
-
         instruction_array: Vec<Instruction>,
         instruction_cycles: Vec<u8>,
 
         log: File,
-        total_cycles: u64
+        //Writes to some PPU registers are ignored before ~29658 CPU cycles, store here
+        total_cycles: u16
     }
 
 
@@ -196,7 +186,7 @@ pub mod cpu {
                 },
                 0x2000..=0x3FFF => {
                     //PPU registers - 0x2000-0x2007 mirrored every 8 bytes
-                    self.ppu.register_write(((addr & 0x2007) - 0x2000) as u8, value);
+                    self.ppu.register_write(((addr & 0x2007) - 0x2000) as u8, value, self.total_cycles);
                 },
                 0x4000..=0x4013 | 0x4015 => {
                     //APU Registers
@@ -283,7 +273,7 @@ pub mod cpu {
                 Instruction::TYA(_mode) => self.tya(),
                 Instruction::NAI => println!("Unofficial/Unassigned opcode!")
             };
-            self.total_cycles += (self.instruction_cycles[opcode as usize] + self.extra_cycles) as u64;
+            self.total_cycles += (self.instruction_cycles[opcode as usize] + self.extra_cycles) as u16;
             self.instruction_cycles[opcode as usize] + self.extra_cycles
         }
 
