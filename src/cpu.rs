@@ -144,8 +144,10 @@ pub mod cpu {
 
 
         pub fn reset(&mut self, power_up: bool) {
-            self.prg_cnt = ((self.cart.cpu_read(0xFFFD) as u16) << 8) | (self.cart.cpu_read(0xFFFC) as u16);
+            self.prg_cnt = ((self.cart.cpu_read(0xFFFD) as u16) << 8) | (self.cart.cpu_read(0xFFFC) as u16);         
+            //APU registers, they all start as 00, need to check reset vs power up
             if power_up { return; }
+            self.ppu.reset();
             self.stat = self.stat | 0x04;
             self.stck_pnt = self.stck_pnt - 3;
         }
