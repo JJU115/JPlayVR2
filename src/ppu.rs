@@ -9,7 +9,7 @@ pub mod ppu {
         secondary_oam: Vec<u8>,
         ppudata_buffer: u8,
 
-        current_scanline: i16,
+        current_scanline: u16,
         scanline_cycle: u16,
         is_odd_cycle: bool,
 
@@ -27,6 +27,7 @@ pub mod ppu {
         fine_x_scroll: u8, //x
         write_toggle: bool, //w
 
+        vblank_flag_set: bool,
         nmi_occurred: bool,
         nmi_output: bool,
         supress_nmi: bool,
@@ -70,6 +71,7 @@ pub mod ppu {
                 Read PPUSTATUS: Return old status of NMI_occurred in bit 7, then set NMI_occurred to false.
                 Write to PPUCTRL: Set NMI_output to bit 7. 
             */
+                vblank_flag_set: false,
                 nmi_occurred: false,
                 nmi_output: false,
                 supress_nmi: false,
@@ -176,7 +178,7 @@ pub mod ppu {
         }
 
         //Based on the internal current cycle, perform one of several actions
-        pub fn generate_signal(&mut self, cycles_to_run: u8) {
+        pub fn generate_signal(&mut self, cycles_to_run: u16) {
             //PPU generates 262 scanlines per frame
             //Each scanline takes 341 PPU cycles, one pixel produced per cycle
             //Cycles 0-340 -- Pre-render scanline, this is one cycle shorter on odd frames
@@ -194,18 +196,33 @@ pub mod ppu {
                 _ => println!("Error: {} is not a valid scanline", self.current_scanline)
             }
 
-            
 
+            self.scanline_cycle += cycles_to_run;
 
-            self.scanline_cycle += cycles_to_run as u16;
                        
             if self.scanline_cycle > 340 {
+
+                //If going on to the pre-render line, clear the appropriate flags in PPUSTATUS
+                if self.current_scanline == 260 {
+                    self.ppu_status &= 0x1F;
+                }
+
+                //If going on to first vblank line, set flag in PPSTATUS and nim_occurred
+                if self.current_scanline == 240 {
+                    self.ppu_status |= 0x80;
+                    self.nmi_occurred = true;
+                }
+
                 self.current_scanline += 1;
                 if self.current_scanline > 261 {
                     self.current_scanline = 0;
+                    if self.is_odd_cycle {
+                        self.scanline_cycle += 1;
+                    }
                 }
                 self.scanline_cycle -= 341;
             } 
+
         }
 
         
@@ -217,7 +234,7 @@ pub mod ppu {
 
 
 
-        fn visible_scanline(&mut self, cycles_to_run: u8) {
+        fn visible_scanline(&mut self, cycles_to_run: u16) {
             let tiles_loaded = (1..=cycles_to_run).fold(0,|acc, curr| 
                 if (self.scanline_cycle + curr as u16) % 9 == 0 {acc+1} else {acc});
 
@@ -228,11 +245,11 @@ pub mod ppu {
                     //For tiles_loaded times, render a tile
                 },
             //Tile data for next scanline's sprites. 8 sprites, 4 fetches each, 2 cycles per fetch = 64 
-                257..=320 => {
+                257..=320 if self.scanline_cycle + cycles_to_run > 320 => {
                     //If scanline_cycle + cycles_to_run exceeds 320, perform the fetches, ignore otherwise 
                 },
             //First 2 tiles of next scanline fetched here
-                321..=336 => {
+                321..=336 if self.scanline_cycle + cycles_to_run > 336 => {
                     //Same as cycles 257..320
                 },
             //2 unused nametable bytes fetched, these plus first nametable fetch of next scanline are used

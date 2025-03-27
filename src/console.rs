@@ -18,6 +18,7 @@ pub mod console {
             loop {
                 let cpu_cycles = self.cpu.execute_instruction();
                 if cpu_cycles == 0 {break;}
+                self.cpu.ppu.generate_signal(cpu_cycles as u16);
             }
         }
     }
